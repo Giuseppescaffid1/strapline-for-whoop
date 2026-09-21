@@ -24,6 +24,16 @@
 
 <!-- ── landing / gate ─────────────────────────────────────────────── -->
 <section id="gate" class="gate">
+  <svg class="mark" viewBox="0 0 120 48" aria-hidden="true">
+    <defs>
+      <linearGradient id="markGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#00e5b0"/><stop offset="100%" stop-color="#7ddc5b"/>
+      </linearGradient>
+    </defs>
+    <path class="mark-bed" pathLength="100" d="M10.8 25 L32.4 25 L39 20.7 L46.2 28.1 L55.8 9.4 L66 38.4 L75 22.6 L84 25 L109.2 25"/>
+    <path class="mark-sweep" pathLength="100" d="M10.8 25 L32.4 25 L39 20.7 L46.2 28.1 L55.8 9.4 L66 38.4 L75 22.6 L84 25 L109.2 25"/>
+  </svg>
+
   <h1>Your strap. <b>Your data.</b></h1>
   <p>An alternative way to read a WHOOP 4.0 — straight over Bluetooth, with live heart rate
      and variability. Nothing is uploaded; the readings never leave this browser.</p>
@@ -34,7 +44,9 @@
       not a medical device, and connecting here ends the strap's pairing with the WHOOP app.</span>
   </label>
 
-  <button id="connect" class="btn primary" style="padding:13px 30px;font-size:15px" disabled>Connect a strap</button>
+  <button id="connect" class="btn primary" style="padding:14px 32px;font-size:15px" disabled>Connect a strap</button>
+
+  <p class="alt">No strap to hand? <a href="?demo=1">Watch it run on sample data →</a></p>
 
   <details class="terms">
     <summary>Terms, risks and what this is</summary>
@@ -81,12 +93,12 @@
   </div>
 
   <ol class="steps">
-    <li>Wear the strap, and free it up — close the WHOOP app on your phone, or turn that phone's Bluetooth off.</li>
+    <li>Wear the strap and free it up — close the WHOOP app on your phone, or turn that phone's Bluetooth off.</li>
     <li>Press <b>Connect a strap</b> and pick your WHOOP in the browser's chooser.</li>
-    <li>Readings start within a few seconds. Everything stays on this device.</li>
+    <li>Readings start within seconds, and stay on this device.</li>
   </ol>
 
-  <p class="hint" style="margin-top:26px">
+  <p class="hint" style="margin-top:24px">
     Independent project, not affiliated with or endorsed by WHOOP.
     Only reads data and toggles the live stream — it can't erase, reboot or reconfigure a strap.
   </p>
