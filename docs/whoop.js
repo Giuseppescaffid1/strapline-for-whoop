@@ -256,17 +256,19 @@ export function selfTest() {
     check(`build ${name}`, got === want, got === want ? '' : `got ${got}`);
   }
 
-  // Real responses from strap "WHOOP 4C2430132".
+  // A real response frame, with the device serial replaced by a placeholder and
+  // the CRC-32 recomputed — the byte layout every offset below depends on is
+  // untouched, but no real hardware identifier is published.
   const helloFrame = parseFrame(unhex(
-    'aa8c004a2400230001049e03000000eee7e2010855000034433234333031333200386532373832623734663430' +
-    '323834633366343736313862383932353932303966653962643962653831373438346562323133396339060000' +
-    '000200000010000000290000001100000006000000000000000806000100000000001100000002000000020000' +
-    '000000000091b2e7d0'));
+    'aa8c004a2400230001049e03000000eee7e201085500004558414d504c453031003865323738326237346634303238' +
+    '3463336634373631386238393235393230396665396264396265383137343834656232313339633906000000020000' +
+    '001000000029000000110000000600000000000000080600010000000000110000000200000002000000000000' +
+    '0055109302'));
   check('parse hello frame', helloFrame !== null);
   if (helloFrame) {
     const h = decodeHello(decodeResponse(helloFrame.inner).payload);
     check('hello battery 92.6%', h.batteryPct === 92.6, `got ${h?.batteryPct}`);
-    check('hello serial 4C2430132', h.serial === '4C2430132', `got ${h?.serial}`);
+    check('hello serial', h.serial === 'EXAMPLE01', `got ${h?.serial}`);
     check('hello clock', h.deviceClock === 31647726, `got ${h?.deviceClock}`);
   }
 

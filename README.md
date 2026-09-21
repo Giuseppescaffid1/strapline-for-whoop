@@ -17,8 +17,8 @@ published so other owners of the same hardware can read their own measurements.
 
 ## Try it
 
-**[→ Open the dashboard](https://example.github.io/strapline-for-whoop/)** · or
-[preview it with synthetic data](https://example.github.io/strapline-for-whoop/?demo=1)
+**[→ Open the dashboard](https://giuseppescaffid1.github.io/strapline-for-whoop/)** · or
+[preview it with synthetic data](https://giuseppescaffid1.github.io/strapline-for-whoop/?demo=1)
 — no strap needed.
 
 Works in **Chrome, Edge, Opera and Brave** on macOS, Windows, Linux and Android.
