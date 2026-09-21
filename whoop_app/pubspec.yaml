@@ -1,0 +1,33 @@
+name: whoop_app
+description: Companion app for a WHOOP 4.0 strap — talks to it directly over BLE and computes sleep, recovery and strain on-device.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_blue_plus: ^1.36.8
+  # Protocol decoder and analytics from OpenStrap (MIT). Pinned to the commits
+  # this app was written against; bump deliberately, their APIs move.
+  openstrap_protocol:
+    git:
+      url: https://github.com/OpenStrap/protocol.git
+      ref: 6d740b337e7ae14baf07d468532476d6ed8049f8
+  openstrap_analytics:
+    git:
+      url: https://github.com/OpenStrap/analytics.git
+      ref: 01e8b6e02b2370ae42490a678e6a0a4e3569104c
+  sqflite: ^2.4.1
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
