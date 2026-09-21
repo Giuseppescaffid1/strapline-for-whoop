@@ -49,7 +49,7 @@ class AppState extends ChangeNotifier {
   Future<void> connect() => _run('Scanning…', () async {
         final device = await band.scan();
         if (device == null) {
-          addLog('No WHOOP found. Quit the WHOOP app on your phone and retry.');
+          addLog('No WHOOP found. The strap can only hold one connection — free it up on your phone and retry.');
           return;
         }
         busy = 'Connecting…';

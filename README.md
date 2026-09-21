@@ -1,10 +1,11 @@
 # Strapline
 
-**Read your own WHOOP 4.0 over Bluetooth — in the browser, on your own machine.**
+**An alternative way to read your own WHOOP 4.0 — in the browser, on your own machine.**
 
 Connect the strap you already own, see live heart rate and heart-rate variability,
 and keep the readings on your own device. No account, no cloud, no server: the page
-is static and there is nowhere for your data to be uploaded to.
+is static and there is nowhere for your data to be uploaded to. It sits alongside the
+WHOOP app rather than replacing it — you can pair back to that whenever you like.
 
 > Not affiliated with, endorsed by or connected to WHOOP, Inc. "WHOOP" is their
 > trademark, used here only to say which hardware this works with.
@@ -22,7 +23,8 @@ It cannot work in Safari or Firefox, or anywhere on iPhone and iPad, because
 on iOS, [Bluefy](https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055) is the
 only browser that can.
 
-Quit the WHOOP app on your phone first: a strap talks to one device at a time.
+Bluetooth lets a strap talk to one device at a time, so free it up first — close the
+WHOOP app on your phone, or turn that phone's Bluetooth off.
 
 ## What you get
 
