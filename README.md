@@ -11,6 +11,10 @@ WHOOP app rather than replacing it — you can pair back to that whenever you li
 > trademark, used here only to say which hardware this works with.
 > Read the [disclaimer](DISCLAIMER.md) before you use it.
 
+Written as a university project on Bluetooth Low Energy software architecture —
+how a real commercial wearable frames, checksums and sequences its traffic — and
+published so other owners of the same hardware can read their own measurements.
+
 ## Try it
 
 **[→ Open the dashboard](https://example.github.io/strapline-for-whoop/)** · or
