@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strapline — live metrics from your own strap</title>
+<meta name="description" content="Read live heart rate and heart-rate variability straight from your WHOOP 4.0 in the browser. No account, no cloud, no subscription.">
+<meta name="color-scheme" content="dark">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>&#128147;</text></svg>">
+</head>
+<body>
+
+<!-- ── landing / gate ─────────────────────────────────────────────── -->
+<section id="gate" class="gate">
+  <h1>Your strap. <b>Your data.</b></h1>
+  <p>Connects straight to a WHOOP 4.0 over Bluetooth and shows live heart rate and
+     variability. Nothing is uploaded — the readings never leave this browser.</p>
+
+  <button id="connect" class="btn primary" style="padding:13px 30px;font-size:15px">Connect a strap</button>
+
+  <div id="unsupported" class="notice bad hidden">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16.5v.01"/></svg>
+    <div>
+      <b>This browser can't reach Bluetooth.</b>
+      Web Bluetooth works in Chrome, Edge, Opera and Brave on macOS, Windows, Linux and Android.
+      Safari and Firefox don't support it, and on iPhone or iPad no browser does — try
+      <a href="https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055">Bluefy</a> there.
+    </div>
+  </div>
+
+  <div class="notice">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17v.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <div>
+      <b>Quit the WHOOP app on your phone first.</b>
+      A strap talks to one device at a time, and connecting here ends its pairing with
+      the phone — you'll have to pair it again in the WHOOP app afterwards.
+    </div>
+  </div>
+
+  <ol class="steps">
+    <li>Wear the strap and close the WHOOP app on your phone.</li>
+    <li>Press <b>Connect a strap</b> and pick your WHOOP in the browser's chooser.</li>
+    <li>Readings start within a few seconds. Everything stays on this device.</li>
+  </ol>
+
+  <p class="hint" style="margin-top:26px">
+    Independent project, not affiliated with or endorsed by WHOOP.
+    Only reads data and toggles the live stream — it can't erase, reboot or reconfigure a strap.
+  </p>
+</section>
+
+<!-- ── dashboard ──────────────────────────────────────────────────── -->
+<div id="dash" class="hidden">
+  <header class="topbar">
+    <div class="brand"><b>Strapline</b><span>live</span></div>
+    <div id="statusPill" class="pill"><i class="dot"></i><span id="statusText">connecting</span></div>
+    <div id="devicePill" class="pill hidden"><span id="deviceText"></span></div>
+    <div id="clockPill" class="pill"><span id="clockText">00:00</span></div>
+    <button id="settingsBtn" class="btn small ghost">Settings</button>
+    <button id="stopBtn" class="btn small">Disconnect</button>
+  </header>
+
+  <main>
+    <div class="grid">
+
+      <section class="card hero">
+        <h2>Heart rate <em id="wristText"></em></h2>
+        <div class="hero-row">
+          <div class="hero-num">
+            <span class="v num" id="hr">--</span><span class="u">bpm</span>
+            <div><span class="zone-chip" id="zoneChip"><i></i><span>waiting for beats</span></span></div>
+          </div>
+          <svg class="gauge" width="132" height="132" viewBox="0 0 132 132">
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0" y1="1" x2="1" y2="0">
+                <stop offset="0%" stop-color="#00e5b0"/><stop offset="100%" stop-color="#7ddc5b"/>
+              </linearGradient>
+            </defs>
+            <circle cx="66" cy="66" r="56" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="10"/>
+            <circle id="gaugeArc" cx="66" cy="66" r="56" fill="none" stroke="url(#gaugeGrad)" stroke-width="10"
+                    stroke-linecap="round" transform="rotate(-90 66 66)"
+                    stroke-dasharray="0 352" style="transition:stroke-dasharray .45s cubic-bezier(.22,.61,.36,1)"/>
+            <text x="66" y="62" text-anchor="middle" fill="#7b8698" font-size="10" letter-spacing="1.4">OF MAX</text>
+            <text id="gaugePct" x="66" y="82" text-anchor="middle" fill="#eef2f8" font-size="21" font-weight="600">--</text>
+          </svg>
+        </div>
+        <canvas id="wave" height="132" style="margin-top:6px"></canvas>
+      </section>
+
+      <section class="card side">
+        <h2>Variability <em id="hrvWindow">last 5 min</em></h2>
+        <div class="metric"><span class="v num" id="rmssd">--</span><span class="u">ms RMSSD</span></div>
+        <div class="sub" id="hrvSub">needs about 30 beats</div>
+        <canvas id="poincare" height="176" style="margin-top:10px"></canvas>
+      </section>
+
+      <section class="card"><h2>SDNN</h2>
+        <div class="metric"><span class="v num" id="sdnn">--</span><span class="u">ms</span></div>
+        <div class="sub">overall variability</div></section>
+
+      <section class="card"><h2>pNN50</h2>
+        <div class="metric"><span class="v num" id="pnn50">--</span><span class="u">%</span></div>
+        <div class="sub">beats differing &gt; 50 ms</div></section>
+
+      <section class="card"><h2>Breathing</h2>
+        <div class="metric"><span class="v num" id="resp">--</span><span class="u">/min</span></div>
+        <div class="sub" id="respSub">from beat rhythm · needs 2 min</div></section>
+
+      <section class="card"><h2>Lowest sustained</h2>
+        <div class="metric"><span class="v num" id="restHr">--</span><span class="u">bpm</span></div>
+        <div class="sub">quietest minute this session</div></section>
+
+      <section class="card half">
+        <h2>Time in zones <em id="maxHrLabel"></em></h2>
+        <div class="zones" id="zones"></div>
+      </section>
+
+      <section class="card half">
+        <h2>Load <em>Banister TRIMP</em></h2>
+        <div class="rowline" style="align-items:flex-end;gap:26px">
+          <div>
+            <div class="metric"><span class="v num" id="load">--</span><span class="u">/ 21</span></div>
+            <div class="sub">display scale, not WHOOP's strain score</div>
+          </div>
+          <div>
+            <div class="metric"><span class="v num" id="trimp" style="font-size:22px">--</span><span class="u">TRIMP</span></div>
+            <div class="sub" id="loadSub">accumulating</div>
+          </div>
+        </div>
+        <canvas id="loadChart" height="86" style="margin-top:14px"></canvas>
+      </section>
+
+      <section class="card full">
+        <h2>Session <em id="sessionMeta"></em></h2>
+        <div class="rowline">
+          <button id="exportCsv" class="btn small">Export CSV</button>
+          <button id="exportJson" class="btn small">Export JSON</button>
+          <span class="grow"></span>
+          <span class="hint" id="storageText"></span>
+        </div>
+        <table class="sessions" id="sessionTable" style="margin-top:16px"></table>
+      </section>
+
+    </div>
+  </main>
+
+  <footer>
+    Readings stay in this browser (IndexedDB) and are never uploaded. Clearing site data deletes them — export first.
+    Pulse-derived variability (PRV), not a medical ECG; nothing here is medical advice.
+    Not affiliated with WHOOP.
+  </footer>
+</div>
+
+<dialog id="settings">
+  <h3>Your numbers</h3>
+  <div class="hint">Used for zones and training load. Kept on this device.</div>
+  <label class="field">Age
+    <input id="ageInput" type="number" min="10" max="99" step="1">
+  </label>
+  <label class="field">Maximum heart rate (bpm)
+    <input id="maxHrInput" type="number" min="120" max="230" step="1">
+  </label>
+  <label class="field">Resting heart rate (bpm)
+    <input id="restInput" type="number" min="30" max="110" step="1">
+  </label>
+  <label class="field">Load formula
+    <select id="sexInput"><option value="male">Male</option><option value="female">Female</option></select>
+  </label>
+  <div class="rowline" style="margin-top:20px">
+    <span class="grow"></span>
+    <button id="settingsClose" class="btn small primary">Done</button>
+  </div>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
