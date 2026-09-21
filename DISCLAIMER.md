@@ -6,30 +6,49 @@ and accept everything set out below.
 ## No affiliation
 
 This project is **not affiliated with, authorised by, endorsed by, sponsored by or
-connected to WHOOP, Inc.** "WHOOP" is a trademark of WHOOP, Inc. It is used in this
-repository only descriptively, to identify the hardware this software interoperates
-with. No WHOOP trademark, logo, icon or branding is used in this project's name,
-artwork or interface, and nothing here should be read as suggesting that WHOOP
-produced, reviewed or approves of it.
+connected to WHOOP, Inc.** WHOOP is a registered trademark of WHOOP, Inc., and all
+rights in it belong to them. It is used in this repository only descriptively, to
+identify the hardware this software interoperates with. No WHOOP trademark, logo,
+icon, artwork or branding is used in this project's name, marks or interface, and
+nothing here should be read as suggesting that WHOOP produced, reviewed or approves
+of it.
+
+This is not a replacement for the WHOOP application. It is an additional way to look
+at a device you own, and it leaves that application working normally.
 
 ## What this software is
 
 An independent Bluetooth Low Energy client, written from observation of a device's
 own radio behaviour and from protocol notes published by the interoperability
 community. It contains **no WHOOP source code, firmware, binaries, cryptographic
-keys, or any other material obtained from WHOOP**.
+keys, artwork, or any other material obtained from WHOOP**.
+
+## What it does not touch
+
+These are verifiable by reading the source, and we invite anyone to check:
+
+- It **never contacts WHOOP's servers, APIs, accounts or any of their services.**
+  The browser application contains no networking code whatsoever — no `fetch`, no
+  `XMLHttpRequest`, no WebSocket, no telemetry. After the page itself is loaded it
+  speaks only to a Bluetooth device in the room.
+- It **holds no credentials** — no account, no login, no token, no API key.
+- It **exposes no one else's data.** It can only reach a device that the person
+  using it physically has and consents to pairing with.
+- It **does not decrypt, unlock or defeat any protection.** The characteristics it
+  reads accept ordinary unauthenticated Bluetooth connections; nothing is bypassed
+  to reach them.
+- It **does not bypass any subscription, payment or paywall**, and makes no paid
+  feature available. It reads live sensor measurements, nothing more.
 
 ## Interoperability purpose
 
 This software exists so that the owner of a device can read the measurements that
-device takes from their own body, on hardware they own. In the European Union,
-Directive 2009/24/EC Articles 5(3) and 6 permit the study and decompilation of a
-program for interoperability purposes. In the United States, 17 U.S.C. § 1201(f)
-provides an interoperability exemption.
+device takes from their own body, on hardware they own.
 
-This software does not bypass any subscription, payment or paywall, does not grant
-access to any account, and does not give access to anyone else's data. It reads a
-device you already own.
+In the European Union, Directive 2009/24/EC Articles 5(3) and 6 permit the study and
+decompilation of a program for interoperability purposes, and **Article 8 makes any
+contractual term purporting to prohibit that void**. In the United States, 17 U.S.C.
+§ 1201(f) provides an interoperability exemption.
 
 ## No warranty and no liability
 
@@ -68,7 +87,19 @@ device that recorded them. The authors never receive, see, store or have any acc
 to them, and provide no backup — if you clear your browser data or lose the device,
 the readings are gone. Export them if you want to keep them.
 
+## If you are WHOOP, or anyone with a concern
+
+This project is offered in good faith and is not intended to harm WHOOP's business,
+confuse anyone about who makes it, or help anyone avoid paying for their service.
+
+If you believe something here infringes your rights or misrepresents your product,
+**please open an issue or contact the maintainer directly and we will engage with
+you promptly.** We would rather fix or remove something than argue about it, and
+requests to clarify wording, change naming, or take down specific material will be
+taken seriously and acted on quickly.
+
 ## Not legal advice
 
-The authors are not lawyers. This document is not legal advice. If you intend to
-rely on any of the legal provisions referred to above, take your own advice.
+The authors are not lawyers. This document is not legal advice, and the statutory
+provisions referred to above are cited for context rather than as a legal opinion.
+If you intend to rely on any of them, take your own advice.

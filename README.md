@@ -40,13 +40,26 @@ machine that recorded them — roughly 145 bytes per second, so an hour is about
 a megabyte. The author never receives, sees or stores them, and keeps no backup:
 clearing your browser data deletes them, so export anything you want to keep.
 
-## What it will not do
+## Scope — what this deliberately does not do
 
-The client can only build four commands — handshake, battery, keep-alive, and the
-live heart-rate toggle. Everything destructive in the protocol (erasing the device's
-flash, rebooting it, moving its read pointer, writing persistent configuration or
-firmware) is **impossible to construct**, not merely discouraged. See
-`ALLOWED_OPCODES` in [docs/whoop.js](docs/whoop.js).
+Each of these is checkable in the source, and you are invited to check:
+
+- **Never contacts WHOOP's servers, APIs or accounts.** The browser app has no
+  networking code at all — grep it for `fetch`, `XMLHttpRequest`, `WebSocket` or
+  `sendBeacon` and you will find nothing. Once the page has loaded it talks only to
+  a Bluetooth device in the room.
+- **Holds no credentials.** No login, no token, no API key, nothing to steal.
+- **Unlocks nothing.** It bypasses no subscription, payment or paywall, and makes no
+  paid feature available. It reads live sensor measurements from your own strap.
+- **Cannot damage a device.** Only four commands can be built — handshake, battery,
+  keep-alive and the live heart-rate toggle. Everything destructive in the protocol
+  (erasing flash, rebooting, moving the read pointer, writing persistent
+  configuration or firmware) is **impossible to construct**, not merely discouraged.
+  See `ALLOWED_OPCODES` in [docs/whoop.js](docs/whoop.js).
+- **Contains no WHOOP code**, firmware, keys or artwork. The protocol layer is an
+  independent implementation.
+- **Replaces nothing.** The WHOOP app keeps working; this is an extra view of
+  hardware you own.
 
 ## Also in this repository
 
@@ -93,3 +106,8 @@ and [zulusierra](https://zulusierra.co/vestigator-part-4-whoop-protocol-cracking
 ## Licence
 
 [MIT](LICENSE). No warranty, no liability — see the [disclaimer](DISCLAIMER.md).
+
+WHOOP is a registered trademark of WHOOP, Inc. This project is independent and not
+affiliated with, endorsed by or connected to them; their name appears only to say
+which hardware it works with. If you are from WHOOP and have a concern about
+anything here, please open an issue — it will be taken seriously and acted on.
