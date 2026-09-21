@@ -4,6 +4,10 @@ import * as S from './storage.js';
 
 const $ = (id) => document.getElementById(id);
 const DEMO = new URLSearchParams(location.search).has('demo');
+const hero = document.querySelector('.card.hero');
+
+/** Circumference of the gauge ring (r = 56). The arc is a fraction of it. */
+const GAUGE_C = 2 * Math.PI * 56;
 
 // ── settings ───────────────────────────────────────────────────────────
 
@@ -29,6 +33,8 @@ function writeSettings() {
 
 const state = {
   device: null,
+  zone: null,
+  zoneApplied: null,
   cmdTo: null,
   seq: 0xa0,
   pending: new Map(),
@@ -54,6 +60,27 @@ const ZONE_RAMP = {
   4: ['#f5b43f', '#ffd36e'],
   5: ['#ff5d5d', '#ff8f6b'],
 };
+/** Below zone 1 the page keeps its own colour rather than borrowing zone 1's
+ *  slate: resting is the state the app is in most of the time, and a dashboard
+ *  that goes grey whenever nothing is happening reads as switched off. The zone
+ *  chip still says "Below zone 1", so nothing is claimed that was not measured. */
+const REST_RAMP = ['#00e5b0', '#7ddc5b'];
+
+/** Canvas cannot read CSS variables, so the ink the charts use is declared
+ *  here and kept identical to design-tokens.md. */
+const INK = {
+  grid: 'rgba(255,255,255,.05)',
+  gridStrong: 'rgba(255,255,255,.09)',
+  axis: '#3b4454',
+  dot: '#eef2f8',
+  violet: '#8b7cf6',
+};
+
+const hexRgb = (hex) => {
+  const v = parseInt(hex.slice(1), 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+};
+const rgba = (hex, a) => `rgba(${hexRgb(hex).join(',')},${a})`;
 
 const nowSec = () => Date.now() / 1000;
 const series = () => [...state.hr.entries()].sort((a, b) => a[0] - b[0]);
@@ -167,6 +194,7 @@ async function connect() {
   await send(W.Cmd.TOGGLE_REALTIME_HR, [0x01]).catch((e) => console.warn('live on', e));
   state.liveOn = true;
   setStatus('live', true);
+  holdScreen();
 
   setInterval(() => send(W.Cmd.LINK_VALID, [0x00]).catch(() => {}), 10000);
   setInterval(async () => {
@@ -188,6 +216,7 @@ async function disconnect() {
     }
     state.liveOn = false;
   }
+  releaseScreen();
   await persist();
   try {
     state.device?.gatt?.disconnect();
@@ -261,6 +290,11 @@ function showDash(deviceName) {
   $('dash').classList.remove('hidden');
   $('devicePill').classList.remove('hidden');
   $('deviceText').textContent = deviceName;
+  // Arms the zone-tinted wash behind the page; on the landing page there is no
+  // zone to report and the tint would be decoration.
+  document.body.classList.add('armed');
+  drawGaugeTicks();
+  render();
 }
 
 const fmt = (v, d = 0) => (v === null || v === undefined || Number.isNaN(v) ? '--' : Number(v).toFixed(d));
@@ -285,8 +319,12 @@ function setNum(id, target, decimals = 0) {
   if (target === null || target === undefined || Number.isNaN(target)) {
     tweens.delete(id);
     if (el.textContent !== '--') el.textContent = '--';
+    // A value that has never arrived shimmers in its own footprint, so the card
+    // does not jump sideways when the first reading lands.
+    el.classList.add('waiting');
     return;
   }
+  el.classList.remove('waiting');
   const t = tweens.get(id);
   if (!t) {
     tweens.set(id, { current: target, target, decimals });
@@ -294,24 +332,37 @@ function setNum(id, target, decimals = 0) {
   } else {
     t.target = target;
     t.decimals = decimals;
+    startNumbers();
   }
 }
 
+// The tween loop runs only while something is actually moving. Left running it
+// wakes the compositor sixty times a second to write the same string.
+let numbersRunning = false;
+
+function startNumbers() {
+  if (numbersRunning || document.hidden) return;
+  numbersRunning = true;
+  requestAnimationFrame(animateNumbers);
+}
+
 function animateNumbers() {
+  let moving = false;
   for (const [id, t] of tweens) {
     const delta = t.target - t.current;
     if (Math.abs(delta) < 0.005) {
       t.current = t.target;
     } else {
       t.current += delta * 0.18;
+      moving = true;
     }
     const text = t.current.toFixed(t.decimals);
     const el = $(id);
     if (el.textContent !== text) el.textContent = text;
   }
-  requestAnimationFrame(animateNumbers);
+  numbersRunning = moving;
+  if (moving) requestAnimationFrame(animateNumbers);
 }
-requestAnimationFrame(animateNumbers);
 
 /**
  * Stroke a path through `pts` using Catmull-Rom control points, so the trace
@@ -348,21 +399,67 @@ function smoothPath(ctx, pts) {
   }
 }
 
-function ctxFor(canvas, height) {
-  const dpr = window.devicePixelRatio || 1;
+// Contexts and gradients are kept rather than rebuilt: at one sample a second
+// across four charts, re-acquiring a context and re-describing three gradients
+// every frame is work that produces an identical result.
+const ctxCache = new WeakMap();
+
+/**
+ * Prepare a canvas for drawing at device resolution.
+ *
+ * Height comes from the element as the stylesheet laid it out, so chart heights
+ * stay a layout decision (style.css) instead of magic numbers spread through
+ * the drawing code. The backing store is capped at 3× — above that the extra
+ * pixels cost fill rate on a phone and show nothing a human eye can resolve.
+ */
+function ctxFor(canvas) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
   const w = canvas.clientWidth || 600;
-  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(height * dpr)) {
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(height * dpr);
-    canvas.style.height = `${height}px`;
+  const h = canvas.clientHeight || 120;
+  let ctx = ctxCache.get(canvas);
+  if (!ctx) {
+    ctx = canvas.getContext('2d');
+    ctxCache.set(canvas, ctx);
   }
-  const ctx = canvas.getContext('2d');
+  const bw = Math.round(w * dpr);
+  const bh = Math.round(h * dpr);
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw;
+    canvas.height = bh;
+  }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, height);
-  return { ctx, w, h: height };
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
 }
 
+/** A hairline lands on a half-pixel or it renders as a two-pixel smear. */
+const crisp = (v) => Math.round(v) + 0.5;
+
+function emptyNote(ctx, w, h, lines) {
+  ctx.fillStyle = INK.axis;
+  ctx.font = '12px -apple-system, system-ui, sans-serif';
+  lines.forEach((line, i) => ctx.fillText(line, 2, h / 2 - 7 + i * 18));
+}
+
+// One redraw per animation frame, never one per sample.
+//
+// Readings arrive once a second, the clock ticks once a second and a resize can
+// fire dozens of times: without coalescing, the same four charts are drawn
+// several times for one visible change. Nothing is drawn at all while the
+// document is hidden — a phone with the screen off was redrawing four canvases
+// a second, which is a battery bug with no observer.
+let renderQueued = false;
+
 function render() {
+  if (renderQueued || document.hidden) return;
+  renderQueued = true;
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    if (!document.hidden) renderNow();
+  });
+}
+
+function renderNow() {
   const all = series();
   const age = nowSec() - state.lastSampleAt;
   const last = state.samples[state.samples.length - 1];
@@ -388,16 +485,29 @@ function render() {
   }
 
   const pct = hr ? Math.min(1.1, hr / settings.maxHr) : 0;
-  $('gaugeArc').setAttribute('stroke-dasharray', `${(pct * 352).toFixed(1)} 352`);
+  $('gaugeArc').setAttribute(
+    'stroke-dasharray',
+    `${(pct * GAUGE_C).toFixed(1)} ${GAUGE_C.toFixed(1)}`,
+  );
   $('gaugePct').textContent = hr ? `${Math.round(pct * 100)}%` : '--';
 
   const zone = M.zoneFor(hr, settings.maxHr);
   // The gauge takes the colour of the zone it is reporting, so effort is
-  // readable from across a room without parsing the number.
-  const [c1, c2] = zone ? ZONE_RAMP[zone.n] : ['#00e5b0', '#7ddc5b'];
-  $('gaugeStop1').setAttribute('stop-color', c1);
-  $('gaugeStop2').setAttribute('stop-color', c2);
-  $('gaugeArc').style.filter = `drop-shadow(0 0 6px ${c1}66)`;
+  // readable from across a room without parsing the number. Published once as
+  // a custom property, it also tints the page wash, the hero glow, the live
+  // dot and the trace — one assignment instead of six repaints.
+  const [c1, c2] = zone ? ZONE_RAMP[zone.n] : REST_RAMP;
+  state.zone = { c1, c2, n: zone?.n ?? 0 };
+  if (state.zoneApplied !== c1) {
+    state.zoneApplied = c1;
+    document.documentElement.style.setProperty('--zone', c1);
+    document.documentElement.style.setProperty('--zone-rgb', hexRgb(c1).join(', '));
+    $('gaugeStop1').setAttribute('stop-color', c1);
+    $('gaugeStop2').setAttribute('stop-color', c2);
+    $('gaugeArc').style.filter = `drop-shadow(0 0 7px ${rgba(c1, 0.45)})`;
+  }
+  // The ring expands once per measured beat, at the measured rate.
+  hero.classList.toggle('beating-ring', Boolean(hr));
 
   const chip = $('zoneChip');
   chip.querySelector('i').style.background = zone ? c1 : 'var(--faint)';
@@ -410,6 +520,7 @@ function render() {
 
   $('wristText').textContent =
     state.wearing === null ? '' : state.wearing ? 'on wrist' : 'off wrist';
+  hero.classList.toggle('off-wrist', state.wearing === false);
 
   const window5 = recentBeats(300);
   const hrvNow = M.hrv(window5);
@@ -434,9 +545,10 @@ function render() {
   $('maxHrLabel').textContent = `max ${settings.maxHr} bpm`;
   $('clockText').textContent = state.session ? hhmmss((Date.now() - state.session.startedAt) / 1000) : '00:00';
   $('deviceText').textContent =
-    [state.device?.name ?? state.session?.device, state.serial, state.battery ? `${state.battery.toFixed(0)}%` : null]
+    [state.device?.name ?? state.session?.device, state.serial]
       .filter(Boolean)
       .join(' · ') || 'demo';
+  renderBattery();
   $('sessionMeta').textContent = `${state.samples.length} samples · ${state.beats.length} beats`;
 
   renderZones(all, zone);
@@ -445,31 +557,78 @@ function render() {
   drawLoad(all);
 }
 
+// The zone rows are rebuilt as markup on every render, but only the widths and
+// the highlighted row ever change, so the DOM is written once per build and the
+// result is compared before it is assigned. Re-parsing identical HTML at 1 Hz
+// throws away the CSS transition on every bar.
+let zonesHtml = '';
+
 function renderZones(all, currentZone) {
   const { secs, below } = M.zoneSeconds(all, settings.maxHr);
   const total = all.length || 1;
+  const bpm = (frac) => Math.round(frac * settings.maxHr);
   const rows = M.ZONES.map((z) => {
     const s = secs.get(z.n);
     const here = currentZone?.n === z.n ? ' now' : '';
-    return `<div class="zrow${here}"><b>Z${z.n}</b>
+    // Naming the zone and its bpm range makes the card useful before any time
+    // has been spent in it: it answers "what would zone 4 feel like" as well
+    // as "how long was I there".
+    const range = z.n === 5 ? `${bpm(z.from)}+` : `${bpm(z.from)}–${bpm(z.to) - 1}`;
+    return `<div class="zrow${here}${s ? '' : ' empty'}">
+      <div class="zname"><b>Z${z.n} ${z.name}</b><span class="zrange">${range} bpm</span></div>
+      <span class="ztime">${s ? hhmmss(s) : '--'}</span>
       <div class="ztrack"><div class="zfill" style="width:${((s / total) * 100).toFixed(1)}%;background:${z.color}"></div></div>
-      <span>${s ? hhmmss(s) : '--'}</span></div>`;
+    </div>`;
   });
   rows.push(
-    `<div class="zrow"><b style="color:var(--faint)">—</b>
+    `<div class="zrow${below ? '' : ' empty'}">
+      <div class="zname"><b style="color:var(--faint)">Below Z1</b><span class="zrange">under ${bpm(0.5)} bpm</span></div>
+      <span class="ztime">${below ? hhmmss(below) : '--'}</span>
       <div class="ztrack"><div class="zfill" style="width:${((below / total) * 100).toFixed(1)}%;background:rgba(255,255,255,.14)"></div></div>
-      <span>${below ? hhmmss(below) : '--'}</span></div>`,
+    </div>`,
   );
-  $('zones').innerHTML = rows.join('');
+  const html = rows.join('');
+  if (html !== zonesHtml) {
+    zonesHtml = html;
+    $('zones').innerHTML = html;
+  }
+}
+
+/** Battery as a cell that fills, because a percentage alone is a number to
+ *  read and a cell is a thing to glance at. */
+function renderBattery() {
+  const pill = $('battPill');
+  if (state.battery === null || state.battery === undefined) {
+    pill.classList.add('hidden');
+    return;
+  }
+  const pct = Math.max(0, Math.min(100, state.battery));
+  pill.classList.remove('hidden');
+  pill.classList.toggle('low', pct <= 25 && pct > 10);
+  pill.classList.toggle('critical', pct <= 10);
+  pill.querySelector('i').style.setProperty('--lvl', `${pct.toFixed(0)}%`);
+  const text = `${pct.toFixed(0)}%`;
+  if ($('battText').textContent !== text) $('battText').textContent = text;
+}
+
+/** Zone boundaries on the gauge ring, drawn once: at 50, 60, 70, 80 and 90% of
+ *  maximum heart rate, which is where the five zones start. */
+function drawGaugeTicks() {
+  const g = $('gaugeTicks');
+  g.innerHTML = M.ZONES.map((z) => {
+    const a = z.from * 2 * Math.PI - Math.PI / 2;
+    const x1 = 66 + Math.cos(a) * 51;
+    const y1 = 66 + Math.sin(a) * 51;
+    const x2 = 66 + Math.cos(a) * 61;
+    const y2 = 66 + Math.sin(a) * 61;
+    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;
+  }).join('');
 }
 
 function drawWave(all) {
-  const height = window.innerWidth < 720 ? 118 : 138;
-  const { ctx, w, h } = ctxFor($('wave'), height);
+  const { ctx, w, h } = ctxFor($('wave'));
   if (all.length < 2) {
-    ctx.fillStyle = '#3b4454';
-    ctx.font = '12px -apple-system, sans-serif';
-    ctx.fillText('waiting for the first readings', 2, h / 2);
+    emptyNote(ctx, w, h, ['waiting for the first readings']);
     return;
   }
   const t1 = all[all.length - 1][0];
@@ -481,21 +640,21 @@ function drawWave(all) {
   const vals = pts.map(([, v]) => v);
   const lo = Math.min(...vals) - 4;
   const hi = Math.max(...vals) + 4;
-  const padT = 14;
-  const padB = 14;
+  const padT = 16;
+  const padB = 18;
   // Inset the right edge so the leading dot and its halo are not clipped.
-  const x = (t) => 2 + ((t - t0) / Math.max(1, t1 - t0)) * (w - 12);
+  const x = (t) => 2 + ((t - t0) / Math.max(1, t1 - t0)) * (w - 14);
   const y = (v) => h - padB - ((v - lo) / Math.max(1, hi - lo)) * (h - padT - padB);
 
-  ctx.strokeStyle = 'rgba(255,255,255,.045)';
+  ctx.strokeStyle = INK.grid;
   ctx.lineWidth = 1;
+  ctx.beginPath();
   for (let i = 0; i <= 3; i++) {
-    const gy = Math.round(padT + ((h - padT - padB) * i) / 3) + 0.5;
-    ctx.beginPath();
+    const gy = crisp(padT + ((h - padT - padB) * i) / 3);
     ctx.moveTo(0, gy);
     ctx.lineTo(w, gy);
-    ctx.stroke();
   }
+  ctx.stroke();
 
   // A pause in the readings (off wrist, a dropped notification) must break the
   // trace — joining across it would draw a heart rate that was never measured.
@@ -512,13 +671,27 @@ function drawWave(all) {
   }
   if (run.length) runs.push(run);
 
+  // The trace is coloured by the zone each reading was in, so the shape of the
+  // session carries its intensity: a stop is added only where the zone changes,
+  // which is a handful of stops for a three-minute window.
   const line = ctx.createLinearGradient(0, 0, w, 0);
-  line.addColorStop(0, '#00e5b0');
-  line.addColorStop(1, '#7ddc5b');
+  let lastColour = null;
+  pts.forEach(([t, v], i) => {
+    const z = M.zoneFor(v, settings.maxHr);
+    const colour = (z ? ZONE_RAMP[z.n] : REST_RAMP)[0];
+    if (colour === lastColour) return;
+    const at = Math.min(1, Math.max(0, (x(t) - 2) / Math.max(1, w - 14)));
+    if (lastColour !== null) line.addColorStop(Math.max(0, at - 0.001), lastColour);
+    line.addColorStop(at, colour);
+    lastColour = colour;
+    if (i === 0) line.addColorStop(0, colour);
+  });
+
+  const tint = state.zone?.c1 ?? '#00e5b0';
   const fill = ctx.createLinearGradient(0, padT, 0, h);
-  fill.addColorStop(0, 'rgba(0,229,176,.28)');
-  fill.addColorStop(0.7, 'rgba(0,229,176,.05)');
-  fill.addColorStop(1, 'rgba(0,229,176,0)');
+  fill.addColorStop(0, rgba(tint, 0.3));
+  fill.addColorStop(0.7, rgba(tint, 0.05));
+  fill.addColorStop(1, rgba(tint, 0));
 
   for (const r of runs) {
     if (r.length < 2) continue;
@@ -531,10 +704,10 @@ function drawWave(all) {
 
     smoothPath(ctx, r);
     ctx.strokeStyle = line;
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = 2.4;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(0,229,176,.45)';
+    ctx.shadowColor = rgba(tint, 0.45);
     ctx.shadowBlur = 10;
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -543,45 +716,45 @@ function drawWave(all) {
   const [lx, ly] = screen[screen.length - 1];
   ctx.beginPath();
   ctx.arc(lx, ly, 9, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(0,229,176,.13)';
+  ctx.fillStyle = rgba(tint, 0.14);
   ctx.fill();
   ctx.beginPath();
   ctx.arc(lx, ly, 3.4, 0, Math.PI * 2);
-  ctx.fillStyle = '#eef2f8';
-  ctx.shadowColor = 'rgba(0,229,176,.9)';
+  ctx.fillStyle = INK.dot;
+  ctx.shadowColor = rgba(tint, 0.9);
   ctx.shadowBlur = 9;
   ctx.fill();
   ctx.shadowBlur = 0;
 
-  ctx.fillStyle = '#3b4454';
-  ctx.font = '10.5px -apple-system, sans-serif';
-  ctx.fillText(`${Math.round(hi)}`, 2, 10);
-  ctx.fillText(`${Math.round(lo)}`, 2, h - 3);
-  const mins = Math.round((t1 - t0) / 60);
-  if (mins >= 1) ctx.fillText(`${mins} min`, w - 38, h - 3);
+  ctx.fillStyle = INK.axis;
+  ctx.font = '10.5px -apple-system, system-ui, sans-serif';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(`${Math.round(hi)}`, 2, 11);
+  ctx.fillText(`${Math.round(lo)}`, 2, h - 4);
+  const mins = (t1 - t0) / 60;
+  if (mins >= 1) {
+    const label = `${Math.round(mins)} min`;
+    ctx.fillText(label, w - ctx.measureText(label).width - 2, h - 4);
+  }
 }
 
 function drawPoincare(beats) {
-  const height = window.innerWidth < 720 ? 168 : 182;
-  const { ctx, w, h } = ctxFor($('poincare'), height);
+  const { ctx, w, h } = ctxFor($('poincare'));
   const nn = M.cleanRr(beats);
   const pairs = [];
   for (let i = 1; i < nn.length; i++) {
     if (nn[i].t - nn[i - 1].t <= 2.5) pairs.push([nn[i - 1].rr, nn[i].rr]);
   }
   if (pairs.length < 4) {
-    ctx.fillStyle = '#3b4454';
-    ctx.font = '12px -apple-system, sans-serif';
-    ctx.fillText('each beat against the one before it', 2, h / 2 - 7);
-    ctx.fillText(`${pairs.length} of 4 beat pairs so far`, 2, h / 2 + 11);
+    emptyNote(ctx, w, h, ['each beat against the one before it', `${pairs.length} of 4 beat pairs so far`]);
     return;
   }
 
   // RR against RR: both axes are the same quantity, so the plot has to be
   // square or the SD1/SD2 spread it exists to show would be distorted.
-  const side = Math.min(w, h) - 8;
-  const ox = (w - side) / 2;
-  const oy = (h - side) / 2;
+  const side = Math.min(w - 26, h - 16);
+  const ox = 22 + (w - 26 - side) / 2;
+  const oy = (h - 16 - side) / 2;
   const flat = pairs.flat();
   const lo = Math.min(...flat) - 25;
   const hi = Math.max(...flat) + 25;
@@ -590,7 +763,13 @@ function drawPoincare(beats) {
   const y = (v) => oy + side - ((v - lo) / span) * side;
   const perMs = side / span;
 
-  ctx.strokeStyle = 'rgba(255,255,255,.09)';
+  // A frame, so the square reads as a plot with axes rather than a cloud of
+  // dots floating in a card.
+  ctx.strokeStyle = INK.grid;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(crisp(ox), crisp(oy), Math.round(side), Math.round(side));
+
+  ctx.strokeStyle = INK.gridStrong;
   ctx.setLineDash([3, 4]);
   ctx.beginPath();
   ctx.moveTo(x(lo), y(lo));
@@ -608,36 +787,50 @@ function drawPoincare(beats) {
     ctx.rotate(-Math.PI / 4);
     ctx.beginPath();
     ctx.ellipse(0, 0, stats.sd2 * perMs, stats.sd1 * perMs, 0, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(139,124,246,.55)';
+    ctx.fillStyle = rgba(INK.violet, 0.08);
+    ctx.fill();
+    ctx.strokeStyle = rgba(INK.violet, 0.65);
     ctx.lineWidth = 1.4;
     ctx.stroke();
-    ctx.fillStyle = 'rgba(139,124,246,.07)';
-    ctx.fill();
     ctx.restore();
   }
 
+  // Age fades the dots, so the cloud shows where the beats are going, not only
+  // where they have been. The most recent beat is drawn last and brightest.
   pairs.forEach(([a, b], i) => {
     const fresh = i / pairs.length;
     ctx.beginPath();
     ctx.arc(x(a), y(b), 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(0,229,176,${0.14 + 0.76 * fresh})`;
+    ctx.fillStyle = rgba(state.zone?.c1 ?? '#00e5b0', 0.12 + 0.7 * fresh);
     ctx.fill();
   });
+  const [la, lb] = pairs[pairs.length - 1];
+  ctx.beginPath();
+  ctx.arc(x(la), y(lb), 3.6, 0, Math.PI * 2);
+  ctx.fillStyle = INK.dot;
+  ctx.shadowColor = rgba(state.zone?.c1 ?? '#00e5b0', 0.9);
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.shadowBlur = 0;
 
-  ctx.fillStyle = '#3b4454';
-  ctx.font = '10.5px -apple-system, sans-serif';
-  ctx.fillText('RRₙ →', w - 42, h - 3);
+  ctx.fillStyle = INK.axis;
+  ctx.font = '10.5px -apple-system, system-ui, sans-serif';
+  const xLabel = 'RR\u2099 \u2192';
+  ctx.fillText(xLabel, ox + side - ctx.measureText(xLabel).width, h - 3);
   // Up the empty left margin beside the square plot, reading bottom-to-top.
   ctx.save();
-  ctx.translate(12, h - 6);
+  ctx.translate(11, oy + side);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillText('RRₙ₊₁ →', 0, 0);
+  ctx.fillText('RR\u2099\u208a\u2081 \u2192', 0, 0);
   ctx.restore();
 }
 
 function drawLoad(all) {
-  const { ctx, w, h } = ctxFor($('loadChart'), 86);
-  if (all.length < 5) return;
+  const { ctx, w, h } = ctxFor($('loadChart'));
+  if (all.length < 5) {
+    emptyNote(ctx, w, h, ['load builds once the session has a few minutes in it']);
+    return;
+  }
   const pts = [];
   let acc = 0;
   for (const [t, hr] of all) {
@@ -652,8 +845,19 @@ function drawLoad(all) {
   const t0 = pts[0][0];
   const t1 = pts[pts.length - 1][0] || t0 + 1;
   const max = acc || 1;
-  const x = (t) => ((t - t0) / Math.max(1, t1 - t0)) * w;
-  const y = (v) => h - 6 - (v / max) * (h - 14);
+  const padR = 8;
+  const x = (t) => ((t - t0) / Math.max(1, t1 - t0)) * (w - padR);
+  const y = (v) => h - 7 - (v / max) * (h - 18);
+
+  ctx.strokeStyle = INK.grid;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i <= 2; i++) {
+    const gy = crisp(11 + ((h - 18) * i) / 2);
+    ctx.moveTo(0, gy);
+    ctx.lineTo(w, gy);
+  }
+  ctx.stroke();
 
   // Thin the series before drawing: a long session holds thousands of seconds
   // and the curve cannot show more detail than there are pixels.
@@ -661,8 +865,8 @@ function drawLoad(all) {
   const screen = pts.filter((_, i) => i % step === 0 || i === pts.length - 1).map(([t, v]) => [x(t), y(v), false]);
 
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, 'rgba(139,124,246,.44)');
-  grad.addColorStop(1, 'rgba(139,124,246,0)');
+  grad.addColorStop(0, rgba(INK.violet, 0.44));
+  grad.addColorStop(1, rgba(INK.violet, 0));
   smoothPath(ctx, screen);
   ctx.lineTo(x(t1), h);
   ctx.lineTo(x(t0), h);
@@ -671,13 +875,21 @@ function drawLoad(all) {
   ctx.fill();
 
   smoothPath(ctx, screen);
-  ctx.strokeStyle = '#8b7cf6';
+  ctx.strokeStyle = INK.violet;
   ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
-  ctx.shadowColor = 'rgba(139,124,246,.5)';
+  ctx.lineCap = 'round';
+  ctx.shadowColor = rgba(INK.violet, 0.5);
   ctx.shadowBlur = 8;
   ctx.stroke();
   ctx.shadowBlur = 0;
+
+  // Where the load has got to, so the curve has a reading and not just a shape.
+  const [ex, ey] = screen[screen.length - 1];
+  ctx.beginPath();
+  ctx.arc(ex, ey, 3, 0, Math.PI * 2);
+  ctx.fillStyle = INK.dot;
+  ctx.fill();
 }
 
 async function renderSessions() {
@@ -738,6 +950,7 @@ function startDemo() {
   state.wearing = true;
   state.liveOn = true;
   startSession('Demo strap');
+  holdScreen();
   const t0 = nowSec();
   let carry = 0;
   state.demoTimer = setInterval(() => {
@@ -846,10 +1059,116 @@ ackBox.addEventListener('change', syncAck);
 if (!supported) $('unsupported').classList.remove('hidden');
 syncAck();
 
-window.addEventListener('resize', () => render());
+// A canvas has no intrinsic size, so a redraw has to follow the element rather
+// than the window: rotating a phone, opening the keyboard, or the bar
+// collapsing in a standalone install all resize the cards without a resize
+// event that means anything on its own.
+if (window.ResizeObserver) {
+  const ro = new ResizeObserver(() => render());
+  for (const id of ['wave', 'poincare', 'loadChart']) ro.observe($(id));
+} else {
+  window.addEventListener('resize', () => render());
+}
+
+// Nothing is drawn while the document is hidden. Coming back, everything is
+// redrawn once — the charts are recomputed from state, so there is no gap to
+// repair, only a frame to catch up.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    render();
+    startNumbers();
+  }
+});
+
+// The bar earns its border once content has gone under it.
+const topbar = document.querySelector('.topbar');
+let scrolled = false;
+addEventListener(
+  'scroll',
+  () => {
+    const now = window.scrollY > 4;
+    if (now !== scrolled) {
+      scrolled = now;
+      topbar.classList.toggle('scrolled', now);
+    }
+  },
+  { passive: true },
+);
+
+// Full-screen the reading for a set: a phone propped on a bench is two feet
+// away, and at that distance the dashboard is one number and a trace.
+const focusBtn = $('focusBtn');
+function setFocus(on) {
+  document.body.classList.toggle('focus', on);
+  focusBtn.setAttribute('aria-pressed', String(on));
+  focusBtn.setAttribute('aria-label', on ? 'Leave full screen' : 'Full-screen the heart rate');
+  render();
+}
+focusBtn.addEventListener('click', () => setFocus(!document.body.classList.contains('focus')));
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.body.classList.contains('focus')) setFocus(false);
+});
+
+// A sheet that cannot be dismissed by tapping beside it reads as stuck; the
+// dialog element gives light dismiss to neither form, so it is wired here.
+$('settings').addEventListener('click', (e) => {
+  if (e.target === $('settings')) $('settingsClose').click();
+});
+
 setInterval(render, 1000);
 renderSessions();
 if (DEMO) startDemo();
+
+// ── the phone stays awake while it is showing live readings ────────────
+//
+// A dashboard that blanks after thirty seconds is not a dashboard, and a phone
+// propped against a water bottle mid-set cannot be tapped to wake. The lock is
+// dropped the moment the tab is hidden (the browser drops it anyway) and taken
+// again on return, because a lock is not reacquired automatically.
+
+let wakeLock = null;
+
+async function holdScreen() {
+  if (!('wakeLock' in navigator) || document.hidden || !state.liveOn) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => {
+      wakeLock = null;
+    });
+  } catch {
+    /* denied, low battery, or unsupported — the dashboard still works */
+  }
+}
+
+function releaseScreen() {
+  wakeLock?.release().catch(() => {});
+  wakeLock = null;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) releaseScreen();
+  else holdScreen();
+});
+
+// ── install to the home screen ─────────────────────────────────────────
+//
+// Offered rather than nagged: the browser fires this only when the app is
+// actually installable, and the button appears on the landing page, never on
+// top of live readings.
+
+let installPrompt = null;
+addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  $('installBtn').classList.remove('hidden');
+});
+$('installBtn').addEventListener('click', async () => {
+  if (!installPrompt) return;
+  $('installBtn').classList.add('hidden');
+  installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => {});
+  installPrompt = null;
+});
 
 // Exposed for the offline protocol check in the console: whoopSelfTest()
 window.whoopSelfTest = W.selfTest;
