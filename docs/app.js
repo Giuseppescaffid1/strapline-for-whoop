@@ -628,10 +628,32 @@ $('connect').addEventListener('click', async () => {
   }
 });
 
-if (!navigator.bluetooth && !DEMO) {
-  $('unsupported').classList.remove('hidden');
-  $('connect').disabled = true;
+// Connecting stays blocked until the terms are ticked. A repository cannot
+// gate `git clone`, so this is the one point where acceptance is actually
+// recorded before the software touches anyone's device.
+const ACK_KEY = 'strapline.accepted.v1';
+const ackBox = $('ackBox');
+const supported = Boolean(navigator.bluetooth) || DEMO;
+
+function syncAck() {
+  $('connect').disabled = !ackBox.checked || !supported;
+  try {
+    if (ackBox.checked) localStorage.setItem(ACK_KEY, new Date().toISOString());
+    else localStorage.removeItem(ACK_KEY);
+  } catch {
+    /* private browsing — the tick just won't be remembered next visit */
+  }
 }
+
+try {
+  ackBox.checked = Boolean(localStorage.getItem(ACK_KEY));
+} catch {
+  /* nothing remembered; the user ticks again */
+}
+ackBox.addEventListener('change', syncAck);
+
+if (!supported) $('unsupported').classList.remove('hidden');
+syncAck();
 
 window.addEventListener('resize', () => render());
 setInterval(render, 1000);

@@ -1,50 +1,93 @@
-# WHOOP 4.0 — direct BLE client, live dashboard and companion app
+# Strapline
 
-University project on Bluetooth software architecture: talk to a WHOOP 4.0 strap
-directly over Bluetooth Low Energy (no WHOOP app, no cloud) and compute sleep,
-recovery and strain metrics on your own machine.
+**Read your own WHOOP 4.0 over Bluetooth — in the browser, on your own machine.**
 
-Not affiliated with WHOOP. Protocol knowledge comes from the community
-reverse-engineering work credited below; it is used only to interoperate with a
-device the author owns.
+Connect the strap you already own, see live heart rate and heart-rate variability,
+and keep the readings on your own device. No account, no cloud, no server: the page
+is static and there is nowhere for your data to be uploaded to.
 
-## Layout
+> Not affiliated with, endorsed by or connected to WHOOP, Inc. "WHOOP" is their
+> trademark, used here only to say which hardware this works with.
+> Read the [disclaimer](DISCLAIMER.md) before you use it.
 
-| Path | What it is | Status |
-|---|---|---|
-| `whoopble/` | Python client (`bleak`): framing, CRC-8/CRC-32, request/response matching, live HR, localhost dashboard | verified against a real strap |
-| `tests/` | protocol unit tests, including frames captured from the strap | `pytest` — all pass |
-| `whoop_app/` | Flutter app (iOS/macOS) on OpenStrap `protocol` + `analytics`: history drain, SQLite store, sleep/HRV/strain cards | written, needs Flutter to build (`whoop_app/SETUP.md`) |
-| `whoopble.sh` | launcher that routes through the framework Python so macOS shows the Bluetooth prompt | |
+## Try it
 
-## Python client
+**[→ Open the dashboard](https://example.github.io/strapline-for-whoop/)** · or
+[preview it with synthetic data](https://example.github.io/strapline-for-whoop/?demo=1)
+— no strap needed.
+
+Works in **Chrome, Edge, Opera and Brave** on macOS, Windows, Linux and Android.
+It cannot work in Safari or Firefox, or anywhere on iPhone and iPad, because
+[Web Bluetooth](https://caniuse.com/web-bluetooth) isn't implemented there —
+on iOS, [Bluefy](https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055) is the
+only browser that can.
+
+Quit the WHOOP app on your phone first: a strap talks to one device at a time.
+
+## What you get
+
+Live heart rate with a zone gauge and trace · RMSSD, SDNN, pNN50 and a Poincaré
+plot · respiratory rate derived from beat rhythm (RSA) · time in five heart-rate
+zones · Banister TRIMP training load · sessions saved locally with CSV and JSON
+export.
+
+## Where your data goes
+
+Into your own browser, and nowhere else. Readings are written to IndexedDB on the
+machine that recorded them — roughly 145 bytes per second, so an hour is about half
+a megabyte. The author never receives, sees or stores them, and keeps no backup:
+clearing your browser data deletes them, so export anything you want to keep.
+
+## What it will not do
+
+The client can only build four commands — handshake, battery, keep-alive, and the
+live heart-rate toggle. Everything destructive in the protocol (erasing the device's
+flash, rebooting it, moving its read pointer, writing persistent configuration or
+firmware) is **impossible to construct**, not merely discouraged. See
+`ALLOWED_OPCODES` in [docs/whoop.js](docs/whoop.js).
+
+## Also in this repository
+
+| Path | What it is |
+|---|---|
+| `docs/` | the web app — a static page, deployable to GitHub Pages as-is |
+| `whoopble/` | a Python client (`bleak`): same protocol, plus a localhost dashboard |
+| `tests/` | protocol tests, run against frames captured from a real strap |
+| `whoop_app/` | a Flutter app (iOS/macOS) for history sync and sleep/recovery metrics |
 
 ```bash
-export WHOOP_ADDRESS=<uuid from scan>
+# Python client
 ./whoopble.sh scan
-./whoopble.sh hello                                   # handshake + battery
-./whoopble.sh stream --seconds 60 --output hr.csv     # live HR + RR intervals to CSV
-./whoopble.sh serve                                   # dashboard at http://localhost:8765
-./whoopble.sh serve --demo                            # same dashboard, synthetic data
+./whoopble.sh serve            # dashboard on http://localhost:8765
+python3 -m pytest tests -q     # protocol tests
 ```
 
-On macOS anything that touches Bluetooth must be started from Terminal (TCC
-attributes the access to the launching app). Quit the WHOOP phone app first —
-the strap accepts one connection at a time.
+The browser build checks itself against the same captured frames — open the console
+on the page and run `whoopSelfTest()`.
 
-## Protocol in one paragraph
+## How it works
 
-Custom GATT service `61080001-8d6d-82b8-614a-1c8cb0f8dcc6`: write commands to
-`…0002`, responses on `…0003`, events on `…0004`, data on `…0005`. Every frame is
-`[0xAA][len u16 LE][CRC-8 poly 0x07 over len][type, seq, opcode, payload…][CRC-32 (zlib) LE]`,
-payload zero-padded to 4 bytes. Handshake `GET_HELLO_HARVARD` (0x23); battery
-`GET_BATTERY_LEVEL` (0x1A, deci-percent); `SET_GENERIC_HR_PROFILE` (0x0E) wakes the
-dormant standard Heart Rate service (0x180D); `TOGGLE_REALTIME_HR` (0x03) streams
-proprietary 1 Hz records; `SEND_HISTORICAL_DATA` (0x16) drains flash in batches
-acknowledged with `HISTORICAL_DATA_RESULT` (0x17).
+The strap exposes a custom GATT service, `61080001-8d6d-82b8-614a-1c8cb0f8dcc6`:
+commands are written to `…0002`, responses arrive on `…0003`, events on `…0004` and
+data on `…0005`. Every frame is
+
+```
+[0xAA] [size u16 LE] [CRC-8 poly 0x07 over the size] [payload, padded to 4 bytes] [CRC-32 zlib LE]
+```
+
+wrapping `[packet type][sequence][opcode][body]`. `GET_HELLO_HARVARD` (0x23) opens a
+session, `GET_BATTERY_LEVEL` (0x1A) returns deci-percent, and `TOGGLE_REALTIME_HR`
+(0x03) starts a 1 Hz stream carrying heart rate and beat-to-beat intervals.
 
 ## Credits
 
-- [OpenStrap](https://github.com/OpenStrap) — `protocol`, `analytics`, `edge`, `research` (MIT)
-- [bWanShiTong/reverse-engineering-whoop-post](https://github.com/bWanShiTong/reverse-engineering-whoop-post) — original sniffer captures
-- Write-ups by [Rusheel Raj](https://www.rusheelraj.com/blog/whoop/), [Alec Jude Wilson](https://judes.club/writing/cracking-the-whoop-5-bluetooth-protocol/) and [zulusierra](https://zulusierra.co/vestigator-part-4-whoop-protocol-cracking/)
+Protocol knowledge comes from the interoperability community, chiefly
+[OpenStrap](https://github.com/OpenStrap) (`protocol`, `analytics`, `research`, MIT) and
+[bWanShiTong's write-up](https://github.com/bWanShiTong/reverse-engineering-whoop-post),
+with sniffer analyses by [Rusheel Raj](https://www.rusheelraj.com/blog/whoop/),
+[Alec Jude Wilson](https://judes.club/writing/cracking-the-whoop-5-bluetooth-protocol/)
+and [zulusierra](https://zulusierra.co/vestigator-part-4-whoop-protocol-cracking/).
+
+## Licence
+
+[MIT](LICENSE). No warranty, no liability — see the [disclaimer](DISCLAIMER.md).

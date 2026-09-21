@@ -184,6 +184,28 @@ canvas { display: block; width: 100%; }
 .steps { text-align: left; max-width: 560px; margin: 18px auto 0; color: var(--muted); font-size: 13.5px; }
 .steps li { margin: 7px 0; }
 
+.ack {
+  display: flex; gap: 11px; align-items: flex-start; text-align: left;
+  max-width: 560px; margin: 0 auto 20px; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: 13px; background: var(--surface);
+  font-size: 13px; color: var(--muted); cursor: pointer;
+}
+.ack input { margin: 2px 0 0; width: 17px; height: 17px; accent-color: var(--accent); flex: none; cursor: pointer; }
+
+.terms {
+  max-width: 560px; margin: 24px auto 0; text-align: left;
+  border: 1px solid var(--line); border-radius: 13px; background: rgba(255, 255, 255, 0.015);
+}
+.terms summary {
+  padding: 13px 16px; cursor: pointer; font-size: 13px; color: var(--muted);
+  list-style: none; user-select: none;
+}
+.terms summary::-webkit-details-marker { display: none; }
+.terms summary::before { content: '▸ '; color: var(--faint); }
+.terms[open] summary::before { content: '▾ '; }
+.terms p { margin: 0 16px 13px; font-size: 12.5px; line-height: 1.55; color: var(--faint); }
+.terms p b { color: var(--muted); }
+
 .hidden { display: none !important; }
 
 /* ── session footer ──────────────────────────────────────────────────── */

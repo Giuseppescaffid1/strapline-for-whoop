@@ -17,7 +17,37 @@
   <p>Connects straight to a WHOOP 4.0 over Bluetooth and shows live heart rate and
      variability. Nothing is uploaded — the readings never leave this browser.</p>
 
-  <button id="connect" class="btn primary" style="padding:13px 30px;font-size:15px">Connect a strap</button>
+  <label class="ack">
+    <input type="checkbox" id="ackBox">
+    <span>This is my own strap and I accept the terms below — no warranty, no liability,
+      not a medical device, and connecting here ends the strap's pairing with the WHOOP app.</span>
+  </label>
+
+  <button id="connect" class="btn primary" style="padding:13px 30px;font-size:15px" disabled>Connect a strap</button>
+
+  <details class="terms">
+    <summary>Terms, risks and what this is</summary>
+    <p><b>Not affiliated with WHOOP.</b> "WHOOP" is a trademark of WHOOP, Inc., used here only to say
+       which hardware this works with. This project is independent, contains no WHOOP code, firmware or
+       keys, and is not endorsed by them.</p>
+    <p><b>What it does.</b> It reads measurements your own device takes from your own body. It bypasses
+       no subscription or payment, and gives access to no account and to nobody else's data.</p>
+    <p><b>No warranty, no liability.</b> Provided "as is" under the MIT Licence. To the fullest extent
+       permitted by law the authors accept no liability for any loss or damage — including damage to
+       your device, loss of data, or loss of warranty cover — arising from using it. You use it
+       entirely at your own risk.</p>
+    <p><b>Risks you accept.</b> Third-party software may void your device warranty. Connecting from a
+       computer ends its pairing with the WHOOP app and you will have to pair it again. This page sends
+       only a short allowlist of read and session-toggle commands — it cannot erase storage, reboot the
+       device, change its saved configuration or write firmware. That is a safeguard taken in good
+       faith, not a guarantee.</p>
+    <p><b>Not a medical device.</b> Not certified by any regulator. Nothing here is a diagnosis or
+       medical advice, and beat intervals come from an optical pulse sensor, not an ECG. Do not use it
+       to make a health decision — ask a clinician.</p>
+    <p><b>Your data.</b> Readings stay in this browser and are never uploaded; the authors never see
+       them and hold no backup. Clearing your browser data deletes them, so export anything you want
+       to keep.</p>
+  </details>
 
   <div id="unsupported" class="notice bad hidden">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16.5v.01"/></svg>
