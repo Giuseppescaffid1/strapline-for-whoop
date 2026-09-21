@@ -518,14 +518,16 @@ async function renderSessions() {
     .slice(0, 8)
     .map((s) => {
       const dur = s.endedAt ? (s.endedAt - s.startedAt) / 1000 : 0;
+      // data-label feeds the phone layout, where each row becomes a card and
+      // the stylesheet renders these as the field names (style.css, ≤719px).
       return `<tr>
-        <td>${new Date(s.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-        <td class="n">${hhmmss(dur)}</td>
-        <td class="n">${fmt(s.summary?.avgHr, 0)} bpm</td>
-        <td class="n">${fmt(s.summary?.rmssd, 1)} ms</td>
-        <td class="n">${fmt(s.summary?.trimp, 1)}</td>
-        <td class="n">${s.compacted ? 'summary only' : `${((s.samples?.length ?? 0) * 145 / 1e6).toFixed(1)} MB`}</td>
-        <td><button class="btn small ghost" data-csv="${s.id}">CSV</button>
+        <td data-label="Started">${new Date(s.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+        <td class="n" data-label="Duration">${hhmmss(dur)}</td>
+        <td class="n" data-label="Avg HR">${fmt(s.summary?.avgHr, 0)} bpm</td>
+        <td class="n" data-label="RMSSD">${fmt(s.summary?.rmssd, 1)} ms</td>
+        <td class="n" data-label="TRIMP">${fmt(s.summary?.trimp, 1)}</td>
+        <td class="n" data-label="Size">${s.compacted ? 'summary only' : `${((s.samples?.length ?? 0) * 145 / 1e6).toFixed(1)} MB`}</td>
+        <td class="act"><button class="btn small ghost" data-csv="${s.id}">CSV</button>
             ${s.compacted ? '' : `<button class="btn small ghost" data-compact="${s.id}">Compact</button>`}
             <button class="btn small ghost" data-del="${s.id}">Delete</button></td>
       </tr>`;

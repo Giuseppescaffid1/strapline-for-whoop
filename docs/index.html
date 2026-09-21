@@ -2,12 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Strapline — live metrics from your own strap</title>
 <meta name="description" content="Read live heart rate and heart-rate variability from your own WHOOP 4.0 in the browser. Runs entirely on your device — no account, no server, nothing uploaded.">
 <meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07090c">
+
 <link rel="stylesheet" href="style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>&#128147;</text></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-64.png" sizes="64x64">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<!-- Added to an iPhone home screen this runs without browser chrome; the dark
+     status bar keeps the notch area matching the page rather than going white. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Strapline">
 </head>
 <body>
 
@@ -86,10 +97,16 @@
   <header class="topbar">
     <div class="brand"><b>Strapline</b><span>live</span></div>
     <div id="statusPill" class="pill"><i class="dot"></i><span id="statusText">connecting</span></div>
-    <div id="devicePill" class="pill hidden"><span id="deviceText"></span></div>
+    <div id="devicePill" class="pill wide-only hidden"><span id="deviceText"></span></div>
     <div id="clockPill" class="pill"><span id="clockText">00:00</span></div>
-    <button id="settingsBtn" class="btn small ghost">Settings</button>
-    <button id="stopBtn" class="btn small">Disconnect</button>
+    <button id="settingsBtn" class="btn small ghost icon" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="label">Settings</span>
+    </button>
+    <button id="stopBtn" class="btn small icon" aria-label="Disconnect">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18.36 6.64A9 9 0 1 1 5.64 6.64"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+      <span class="label">Disconnect</span>
+    </button>
   </header>
 
   <main>

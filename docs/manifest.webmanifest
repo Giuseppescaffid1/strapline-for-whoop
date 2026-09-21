@@ -1,0 +1,19 @@
+{
+  "name": "Strapline — live strap metrics",
+  "short_name": "Strapline",
+  "description": "Read live heart rate and heart-rate variability from your own WHOOP 4.0, entirely on your device.",
+  "id": "/strapline-for-whoop/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#07090c",
+  "theme_color": "#07090c",
+  "categories": ["health", "fitness", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
