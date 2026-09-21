@@ -500,9 +500,11 @@ async function renderSessions() {
   }
   const use = await S.usage().catch(() => null);
   const durable = await S.requestPersistence();
+  const pct = use?.quota ? (use.used / use.quota) * 100 : null;
   $('storageText').textContent = [
     `${list.length} saved`,
-    use ? `${(use.used / 1e6).toFixed(1)} MB` : null,
+    use ? `${(use.used / 1e6).toFixed(1)} MB of ${(use.quota / 1e9).toFixed(1)} GB` : null,
+    pct !== null && pct > 70 ? `${pct.toFixed(0)}% full — export and compact` : null,
     durable === false ? 'may be cleared by the browser — export to keep' : null,
   ]
     .filter(Boolean)
@@ -522,13 +524,15 @@ async function renderSessions() {
         <td class="n">${fmt(s.summary?.avgHr, 0)} bpm</td>
         <td class="n">${fmt(s.summary?.rmssd, 1)} ms</td>
         <td class="n">${fmt(s.summary?.trimp, 1)}</td>
+        <td class="n">${s.compacted ? 'summary only' : `${((s.samples?.length ?? 0) * 145 / 1e6).toFixed(1)} MB`}</td>
         <td><button class="btn small ghost" data-csv="${s.id}">CSV</button>
+            ${s.compacted ? '' : `<button class="btn small ghost" data-compact="${s.id}">Compact</button>`}
             <button class="btn small ghost" data-del="${s.id}">Delete</button></td>
       </tr>`;
     })
     .join('');
   $('sessionTable').innerHTML =
-    `<thead><tr><th>Started</th><th>Duration</th><th>Avg HR</th><th>RMSSD</th><th>TRIMP</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+    `<thead><tr><th>Started</th><th>Duration</th><th>Avg HR</th><th>RMSSD</th><th>TRIMP</th><th>Size</th><th></th></tr></thead><tbody>${rows}</tbody>`;
 }
 
 // ── demo ───────────────────────────────────────────────────────────────
@@ -599,7 +603,12 @@ $('sessionTable').addEventListener('click', async (e) => {
     const s = await S.getSession(csv);
     if (s) S.exportCsv(s);
   }
-  if (del) {
+  const compact = e.target.dataset?.compact;
+  if (compact && confirm('Drop the per-second readings and keep only this session\'s summary?\n\nHeart-rate variability cannot be recomputed afterwards. Export first if you want the detail.')) {
+    await S.compactSession(compact);
+    await renderSessions();
+  }
+  if (del && confirm('Delete this session permanently?')) {
     await S.deleteSession(del);
     await renderSessions();
   }

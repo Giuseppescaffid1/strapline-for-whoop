@@ -38,6 +38,23 @@ export const saveSession = (session) => tx('readwrite', (s) => s.put(session));
 export const deleteSession = (id) => tx('readwrite', (s) => s.delete(id));
 export const getSession = (id) => tx('readonly', (s) => s.get(id));
 
+/**
+ * Drop a session's per-second samples, keeping its summary.
+ *
+ * Roughly 145 bytes per recorded second on disk, so an hour is ~0.5 MB and a
+ * full day ~12 MB. The summary is a few hundred bytes and keeps the session
+ * visible in history forever. Deliberately NOT automatic: raw beats are the
+ * only thing HRV can be recomputed from, so losing them is the user's call.
+ */
+export async function compactSession(id) {
+  const s = await getSession(id);
+  if (!s || !s.samples?.length) return null;
+  s.samples = [];
+  s.compacted = true;
+  await saveSession(s);
+  return s;
+}
+
 export async function listSessions() {
   const all = (await tx('readonly', (s) => s.getAll())) ?? [];
   return all.sort((a, b) => b.startedAt - a.startedAt);
