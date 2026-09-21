@@ -122,13 +122,15 @@
           <svg class="gauge" width="132" height="132" viewBox="0 0 132 132">
             <defs>
               <linearGradient id="gaugeGrad" x1="0" y1="1" x2="1" y2="0">
-                <stop offset="0%" stop-color="#00e5b0"/><stop offset="100%" stop-color="#7ddc5b"/>
+                <stop id="gaugeStop1" offset="0%" stop-color="#00e5b0"/>
+                <stop id="gaugeStop2" offset="100%" stop-color="#7ddc5b"/>
               </linearGradient>
             </defs>
             <circle cx="66" cy="66" r="56" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="10"/>
             <circle id="gaugeArc" cx="66" cy="66" r="56" fill="none" stroke="url(#gaugeGrad)" stroke-width="10"
                     stroke-linecap="round" transform="rotate(-90 66 66)"
-                    stroke-dasharray="0 352" style="transition:stroke-dasharray .45s cubic-bezier(.22,.61,.36,1)"/>
+                    stroke-dasharray="0 352"
+                    style="transition:stroke-dasharray .45s cubic-bezier(.22,.61,.36,1);filter:drop-shadow(0 0 6px rgba(0,229,176,.45))"/>
             <text x="66" y="62" text-anchor="middle" fill="#7b8698" font-size="10" letter-spacing="1.4">OF MAX</text>
             <text id="gaugePct" x="66" y="82" text-anchor="middle" fill="#eef2f8" font-size="21" font-weight="600">--</text>
           </svg>

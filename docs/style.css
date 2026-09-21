@@ -235,6 +235,19 @@ main {
   color: transparent;
 }
 .hero-num .u { font-size: 13px; color: var(--muted); margin-left: 3px; }
+
+/* Driven from the measured rate in app.js, not a decorative loop. */
+.hero-num .v.beating {
+  display: inline-block;
+  transform-origin: left center;
+  animation: beat var(--beat, 1s) ease-out infinite;
+}
+@keyframes beat {
+  0% { transform: scale(1); }
+  7% { transform: scale(1.035); }
+  22% { transform: scale(1); }
+  100% { transform: scale(1); }
+}
 .zone-chip {
   display: inline-flex;
   align-items: center;
@@ -263,6 +276,9 @@ canvas { display: block; width: 100%; }
 .ztrack { height: 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.055); overflow: hidden; }
 .zfill { height: 100%; border-radius: 999px; width: 0; transition: width 0.6s var(--ease); }
 .zrow span { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* The zone the wearer is in right now, so the card answers "where am I?" first. */
+.zrow.now b, .zrow.now span { color: var(--fg); }
+.zrow.now .ztrack { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16); }
 
 /* ── gate ────────────────────────────────────────────────────────────── */
 

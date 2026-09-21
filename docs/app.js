@@ -46,6 +46,15 @@ const state = {
   saveTimer: null,
 };
 
+/** Gradient pair per heart-rate zone, matching the bars in the zones card. */
+const ZONE_RAMP = {
+  1: ['#55627a', '#7c8aa3'],
+  2: ['#4da3ff', '#6ac7ff'],
+  3: ['#00e5b0', '#7ddc5b'],
+  4: ['#f5b43f', '#ffd36e'],
+  5: ['#ff5d5d', '#ff8f6b'],
+};
+
 const nowSec = () => Date.now() / 1000;
 const series = () => [...state.hr.entries()].sort((a, b) => a[0] - b[0]);
 const recentBeats = (span) => {
@@ -263,6 +272,82 @@ function hhmmss(sec) {
   return (h ? `${h}:${String(m).padStart(2, '0')}` : `${m}`) + `:${String(s % 60).padStart(2, '0')}`;
 }
 
+// ── number animation ───────────────────────────────────────────────────
+//
+// Readings arrive once a second and snapping between them looks mechanical.
+// Each figure eases toward its target instead, which also makes a changing
+// value legible as movement out of the corner of the eye.
+
+const tweens = new Map();
+
+function setNum(id, target, decimals = 0) {
+  const el = $(id);
+  if (target === null || target === undefined || Number.isNaN(target)) {
+    tweens.delete(id);
+    if (el.textContent !== '--') el.textContent = '--';
+    return;
+  }
+  const t = tweens.get(id);
+  if (!t) {
+    tweens.set(id, { current: target, target, decimals });
+    el.textContent = target.toFixed(decimals);
+  } else {
+    t.target = target;
+    t.decimals = decimals;
+  }
+}
+
+function animateNumbers() {
+  for (const [id, t] of tweens) {
+    const delta = t.target - t.current;
+    if (Math.abs(delta) < 0.005) {
+      t.current = t.target;
+    } else {
+      t.current += delta * 0.18;
+    }
+    const text = t.current.toFixed(t.decimals);
+    const el = $(id);
+    if (el.textContent !== text) el.textContent = text;
+  }
+  requestAnimationFrame(animateNumbers);
+}
+requestAnimationFrame(animateNumbers);
+
+/**
+ * Stroke a path through `pts` using Catmull-Rom control points, so the trace
+ * curves through every sample instead of showing the polygon corners a
+ * straight-segment path would. `pts` is [[x, y, breakBefore], …].
+ */
+function smoothPath(ctx, pts) {
+  ctx.beginPath();
+  let started = false;
+  for (let i = 0; i < pts.length; i++) {
+    const [x, y, brk] = pts[i];
+    if (!started || brk) {
+      ctx.moveTo(x, y);
+      started = true;
+      continue;
+    }
+    const p0 = pts[i - 2] ?? pts[i - 1];
+    const p1 = pts[i - 1];
+    const p2 = pts[i];
+    const p3 = pts[i + 1] ?? pts[i];
+    // A gap either side means there is no meaningful tangent; fall back to a line.
+    if (p2[2] || (pts[i + 1] && pts[i + 1][2])) {
+      ctx.lineTo(x, y);
+      continue;
+    }
+    ctx.bezierCurveTo(
+      p1[0] + (p2[0] - p0[0]) / 6,
+      p1[1] + (p2[1] - p0[1]) / 6,
+      p2[0] - (p3[0] - p1[0]) / 6,
+      p2[1] - (p3[1] - p1[1]) / 6,
+      p2[0],
+      p2[1],
+    );
+  }
+}
+
 function ctxFor(canvas, height) {
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 600;
@@ -290,15 +375,33 @@ function render() {
   }
 
   const hr = last?.hr > 0 ? last.hr : null;
-  $('hr').textContent = hr ?? '--';
+  setNum('hr', hr, 0);
+
+  // Pulse the figure at the rate it is reporting. Idle animation would be
+  // decoration; driven by the measurement it is a second read of the number.
+  const hrEl = $('hr');
+  if (hr) {
+    hrEl.style.setProperty('--beat', `${(60 / hr).toFixed(2)}s`);
+    hrEl.classList.add('beating');
+  } else {
+    hrEl.classList.remove('beating');
+  }
 
   const pct = hr ? Math.min(1.1, hr / settings.maxHr) : 0;
   $('gaugeArc').setAttribute('stroke-dasharray', `${(pct * 352).toFixed(1)} 352`);
   $('gaugePct').textContent = hr ? `${Math.round(pct * 100)}%` : '--';
 
   const zone = M.zoneFor(hr, settings.maxHr);
+  // The gauge takes the colour of the zone it is reporting, so effort is
+  // readable from across a room without parsing the number.
+  const [c1, c2] = zone ? ZONE_RAMP[zone.n] : ['#00e5b0', '#7ddc5b'];
+  $('gaugeStop1').setAttribute('stop-color', c1);
+  $('gaugeStop2').setAttribute('stop-color', c2);
+  $('gaugeArc').style.filter = `drop-shadow(0 0 6px ${c1}66)`;
+
   const chip = $('zoneChip');
-  chip.querySelector('i').style.background = zone ? zone.color : 'var(--faint)';
+  chip.querySelector('i').style.background = zone ? c1 : 'var(--faint)';
+  chip.style.borderColor = zone ? `${c1}55` : '';
   chip.querySelector('span').textContent = zone
     ? `Zone ${zone.n} · ${zone.name}`
     : hr
@@ -308,23 +411,24 @@ function render() {
   $('wristText').textContent =
     state.wearing === null ? '' : state.wearing ? 'on wrist' : 'off wrist';
 
-  const hrvNow = M.hrv(recentBeats(300));
-  $('rmssd').textContent = fmt(hrvNow?.rmssd, 1);
-  $('sdnn').textContent = fmt(hrvNow?.sdnn, 1);
-  $('pnn50').textContent = fmt(hrvNow?.pnn50, 1);
+  const window5 = recentBeats(300);
+  const hrvNow = M.hrv(window5);
+  setNum('rmssd', hrvNow?.rmssd ?? null, 1);
+  setNum('sdnn', hrvNow?.sdnn ?? null, 1);
+  setNum('pnn50', hrvNow?.pnn50 ?? null, 1);
   $('hrvSub').textContent = hrvNow
     ? `${hrvNow.beats} beats · SD1 ${hrvNow.sd1.toFixed(1)} / SD2 ${hrvNow.sd2.toFixed(1)} ms`
-    : `needs about 30 beats — have ${recentBeats(300).length}`;
+    : `needs about 30 beats — have ${window5.length}`;
 
-  const resp = M.respiratoryRate(recentBeats(300));
-  $('resp').textContent = fmt(resp?.brpm, 1);
+  const resp = M.respiratoryRate(window5);
+  setNum('resp', resp?.brpm ?? null, 1);
   $('respSub').textContent = resp ? 'from beat rhythm (RSA)' : 'from beat rhythm · needs 2 min';
 
-  $('restHr').textContent = fmt(M.restingProxy(all.map((x) => x)), 0);
+  setNum('restHr', M.restingProxy(all), 0);
 
   const trimpValue = M.trimp(all, settings);
-  $('trimp').textContent = fmt(trimpValue, 1);
-  $('load').textContent = fmt(M.loadScore(trimpValue), 1);
+  setNum('trimp', trimpValue, 1);
+  setNum('load', M.loadScore(trimpValue), 1);
   $('loadSub').textContent = all.length ? `over ${hhmmss(all.length)} of data` : 'accumulating';
 
   $('maxHrLabel').textContent = `max ${settings.maxHr} bpm`;
@@ -335,18 +439,19 @@ function render() {
       .join(' · ') || 'demo';
   $('sessionMeta').textContent = `${state.samples.length} samples · ${state.beats.length} beats`;
 
-  renderZones(all);
+  renderZones(all, zone);
   drawWave(all);
   drawPoincare(recentBeats(600));
   drawLoad(all);
 }
 
-function renderZones(all) {
+function renderZones(all, currentZone) {
   const { secs, below } = M.zoneSeconds(all, settings.maxHr);
   const total = all.length || 1;
   const rows = M.ZONES.map((z) => {
     const s = secs.get(z.n);
-    return `<div class="zrow"><b>Z${z.n}</b>
+    const here = currentZone?.n === z.n ? ' now' : '';
+    return `<div class="zrow${here}"><b>Z${z.n}</b>
       <div class="ztrack"><div class="zfill" style="width:${((s / total) * 100).toFixed(1)}%;background:${z.color}"></div></div>
       <span>${s ? hhmmss(s) : '--'}</span></div>`;
   });
@@ -359,8 +464,14 @@ function renderZones(all) {
 }
 
 function drawWave(all) {
-  const { ctx, w, h } = ctxFor($('wave'), 132);
-  if (all.length < 2) return;
+  const height = window.innerWidth < 720 ? 118 : 138;
+  const { ctx, w, h } = ctxFor($('wave'), height);
+  if (all.length < 2) {
+    ctx.fillStyle = '#3b4454';
+    ctx.font = '12px -apple-system, sans-serif';
+    ctx.fillText('waiting for the first readings', 2, h / 2);
+    return;
+  }
   const t1 = all[all.length - 1][0];
   // Use the real span until there is a full window, so the trace fills the card
   // from the first seconds instead of hugging the right edge.
@@ -370,70 +481,116 @@ function drawWave(all) {
   const vals = pts.map(([, v]) => v);
   const lo = Math.min(...vals) - 4;
   const hi = Math.max(...vals) + 4;
-  const x = (t) => ((t - t0) / (t1 - t0)) * w;
-  const y = (v) => h - 12 - ((v - lo) / (hi - lo)) * (h - 26);
+  const padT = 14;
+  const padB = 14;
+  // Inset the right edge so the leading dot and its halo are not clipped.
+  const x = (t) => 2 + ((t - t0) / Math.max(1, t1 - t0)) * (w - 12);
+  const y = (v) => h - padB - ((v - lo) / Math.max(1, hi - lo)) * (h - padT - padB);
 
-  ctx.strokeStyle = 'rgba(255,255,255,.05)';
+  ctx.strokeStyle = 'rgba(255,255,255,.045)';
   ctx.lineWidth = 1;
   for (let i = 0; i <= 3; i++) {
-    const gy = 12 + ((h - 26) * i) / 3;
+    const gy = Math.round(padT + ((h - padT - padB) * i) / 3) + 0.5;
     ctx.beginPath();
     ctx.moveTo(0, gy);
     ctx.lineTo(w, gy);
     ctx.stroke();
   }
 
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, 'rgba(0,229,176,.30)');
-  grad.addColorStop(1, 'rgba(0,229,176,0)');
+  // A pause in the readings (off wrist, a dropped notification) must break the
+  // trace — joining across it would draw a heart rate that was never measured.
+  const screen = pts.map(([t, v], i) => [x(t), y(v), i > 0 && t - pts[i - 1][0] > 5]);
+
+  const runs = [];
+  let run = [];
+  for (const p of screen) {
+    if (p[2] && run.length) {
+      runs.push(run);
+      run = [];
+    }
+    run.push([p[0], p[1], false]);
+  }
+  if (run.length) runs.push(run);
+
+  const line = ctx.createLinearGradient(0, 0, w, 0);
+  line.addColorStop(0, '#00e5b0');
+  line.addColorStop(1, '#7ddc5b');
+  const fill = ctx.createLinearGradient(0, padT, 0, h);
+  fill.addColorStop(0, 'rgba(0,229,176,.28)');
+  fill.addColorStop(0.7, 'rgba(0,229,176,.05)');
+  fill.addColorStop(1, 'rgba(0,229,176,0)');
+
+  for (const r of runs) {
+    if (r.length < 2) continue;
+    smoothPath(ctx, r);
+    ctx.lineTo(r[r.length - 1][0], h);
+    ctx.lineTo(r[0][0], h);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    smoothPath(ctx, r);
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 2.2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(0,229,176,.45)';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  const [lx, ly] = screen[screen.length - 1];
   ctx.beginPath();
-  ctx.moveTo(x(pts[0][0]), h);
-  for (const [t, v] of pts) ctx.lineTo(x(t), y(v));
-  ctx.lineTo(x(pts[pts.length - 1][0]), h);
-  ctx.closePath();
-  ctx.fillStyle = grad;
+  ctx.arc(lx, ly, 9, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,229,176,.13)';
   ctx.fill();
-
   ctx.beginPath();
-  pts.forEach(([t, v], i) => (i ? ctx.lineTo(x(t), y(v)) : ctx.moveTo(x(t), y(v))));
-  ctx.strokeStyle = '#00e5b0';
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-
-  const [lt, lv] = pts[pts.length - 1];
-  ctx.beginPath();
-  ctx.arc(x(lt), y(lv), 3.5, 0, Math.PI * 2);
+  ctx.arc(lx, ly, 3.4, 0, Math.PI * 2);
   ctx.fillStyle = '#eef2f8';
+  ctx.shadowColor = 'rgba(0,229,176,.9)';
+  ctx.shadowBlur = 9;
   ctx.fill();
+  ctx.shadowBlur = 0;
 
-  ctx.fillStyle = '#4d5768';
-  ctx.font = '11px -apple-system, sans-serif';
-  ctx.fillText(`${Math.round(hi)}`, 2, 12);
-  ctx.fillText(`${Math.round(lo)}`, 2, h - 2);
+  ctx.fillStyle = '#3b4454';
+  ctx.font = '10.5px -apple-system, sans-serif';
+  ctx.fillText(`${Math.round(hi)}`, 2, 10);
+  ctx.fillText(`${Math.round(lo)}`, 2, h - 3);
+  const mins = Math.round((t1 - t0) / 60);
+  if (mins >= 1) ctx.fillText(`${mins} min`, w - 38, h - 3);
 }
 
 function drawPoincare(beats) {
-  const { ctx, w, h } = ctxFor($('poincare'), 176);
+  const height = window.innerWidth < 720 ? 168 : 182;
+  const { ctx, w, h } = ctxFor($('poincare'), height);
   const nn = M.cleanRr(beats);
-  if (nn.length < 8) {
-    ctx.fillStyle = '#4d5768';
-    ctx.font = '12px -apple-system, sans-serif';
-    ctx.fillText('Poincaré plot appears once beats arrive', 4, h / 2);
-    return;
-  }
   const pairs = [];
   for (let i = 1; i < nn.length; i++) {
     if (nn[i].t - nn[i - 1].t <= 2.5) pairs.push([nn[i - 1].rr, nn[i].rr]);
   }
-  if (!pairs.length) return;
-  const flat = pairs.flat();
-  const lo = Math.min(...flat) - 30;
-  const hi = Math.max(...flat) + 30;
-  const x = (v) => ((v - lo) / (hi - lo)) * (w - 8) + 4;
-  const y = (v) => h - 4 - ((v - lo) / (hi - lo)) * (h - 8);
+  if (pairs.length < 4) {
+    ctx.fillStyle = '#3b4454';
+    ctx.font = '12px -apple-system, sans-serif';
+    ctx.fillText('each beat against the one before it', 2, h / 2 - 7);
+    ctx.fillText(`${pairs.length} of 4 beat pairs so far`, 2, h / 2 + 11);
+    return;
+  }
 
-  ctx.strokeStyle = 'rgba(255,255,255,.10)';
+  // RR against RR: both axes are the same quantity, so the plot has to be
+  // square or the SD1/SD2 spread it exists to show would be distorted.
+  const side = Math.min(w, h) - 8;
+  const ox = (w - side) / 2;
+  const oy = (h - side) / 2;
+  const flat = pairs.flat();
+  const lo = Math.min(...flat) - 25;
+  const hi = Math.max(...flat) + 25;
+  const span = Math.max(1, hi - lo);
+  const x = (v) => ox + ((v - lo) / span) * side;
+  const y = (v) => oy + side - ((v - lo) / span) * side;
+  const perMs = side / span;
+
+  ctx.strokeStyle = 'rgba(255,255,255,.09)';
   ctx.setLineDash([3, 4]);
   ctx.beginPath();
   ctx.moveTo(x(lo), y(lo));
@@ -441,17 +598,41 @@ function drawPoincare(beats) {
   ctx.stroke();
   ctx.setLineDash([]);
 
+  // The SD1/SD2 ellipse is the standard reading of this plot: width along the
+  // identity line is long-term variability, thickness across it is beat-to-beat.
+  const stats = M.hrv(beats);
+  if (stats) {
+    const mean = stats.meanRr;
+    ctx.save();
+    ctx.translate(x(mean), y(mean));
+    ctx.rotate(-Math.PI / 4);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, stats.sd2 * perMs, stats.sd1 * perMs, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(139,124,246,.55)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(139,124,246,.07)';
+    ctx.fill();
+    ctx.restore();
+  }
+
   pairs.forEach(([a, b], i) => {
     const fresh = i / pairs.length;
     ctx.beginPath();
-    ctx.arc(x(a), y(b), 2.6, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(0,229,176,${0.18 + 0.72 * fresh})`;
+    ctx.arc(x(a), y(b), 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0,229,176,${0.14 + 0.76 * fresh})`;
     ctx.fill();
   });
 
-  ctx.fillStyle = '#4d5768';
-  ctx.font = '11px -apple-system, sans-serif';
-  ctx.fillText('RRₙ →', w - 46, h - 5);
+  ctx.fillStyle = '#3b4454';
+  ctx.font = '10.5px -apple-system, sans-serif';
+  ctx.fillText('RRₙ →', w - 42, h - 3);
+  // Up the empty left margin beside the square plot, reading bottom-to-top.
+  ctx.save();
+  ctx.translate(12, h - 6);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('RRₙ₊₁ →', 0, 0);
+  ctx.restore();
 }
 
 function drawLoad(all) {
@@ -474,21 +655,29 @@ function drawLoad(all) {
   const x = (t) => ((t - t0) / Math.max(1, t1 - t0)) * w;
   const y = (v) => h - 6 - (v / max) * (h - 14);
 
+  // Thin the series before drawing: a long session holds thousands of seconds
+  // and the curve cannot show more detail than there are pixels.
+  const step = Math.max(1, Math.floor(pts.length / Math.max(60, w)));
+  const screen = pts.filter((_, i) => i % step === 0 || i === pts.length - 1).map(([t, v]) => [x(t), y(v), false]);
+
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, 'rgba(139,124,246,.42)');
+  grad.addColorStop(0, 'rgba(139,124,246,.44)');
   grad.addColorStop(1, 'rgba(139,124,246,0)');
-  ctx.beginPath();
-  ctx.moveTo(x(t0), h);
-  for (const [t, v] of pts) ctx.lineTo(x(t), y(v));
+  smoothPath(ctx, screen);
   ctx.lineTo(x(t1), h);
+  ctx.lineTo(x(t0), h);
   ctx.closePath();
   ctx.fillStyle = grad;
   ctx.fill();
-  ctx.beginPath();
-  pts.forEach(([t, v], i) => (i ? ctx.lineTo(x(t), y(v)) : ctx.moveTo(x(t), y(v))));
+
+  smoothPath(ctx, screen);
   ctx.strokeStyle = '#8b7cf6';
   ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = 'rgba(139,124,246,.5)';
+  ctx.shadowBlur = 8;
   ctx.stroke();
+  ctx.shadowBlur = 0;
 }
 
 async function renderSessions() {
@@ -664,3 +853,11 @@ if (DEMO) startDemo();
 
 // Exposed for the offline protocol check in the console: whoopSelfTest()
 window.whoopSelfTest = W.selfTest;
+
+// Offline support. Registered after load so it never competes with the first
+// paint, and skipped on file:// where service workers are unavailable.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch((e) => console.warn('offline support unavailable', e));
+  });
+}
