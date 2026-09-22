@@ -48,6 +48,11 @@
 
   <p class="alt">No strap to hand? <a href="?demo=1">Watch it run on sample data →</a></p>
 
+  <div><button id="installBtn" class="btn small install hidden">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+    </svg>Add to home screen</button></div>
+
   <details class="terms">
     <summary>Terms, risks and what this is</summary>
     <p><b>Not affiliated with WHOOP.</b> "WHOOP" is a trademark of WHOOP, Inc., used here only to say
@@ -110,7 +115,10 @@
     <div class="brand"><b>Strapline</b><span>live</span></div>
     <div id="statusPill" class="pill"><i class="dot"></i><span id="statusText">connecting</span></div>
     <div id="devicePill" class="pill wide-only hidden"><span id="deviceText"></span></div>
-    <div id="clockPill" class="pill"><span id="clockText">00:00</span></div>
+    <div id="battPill" class="pill batt hidden" title="Strap battery">
+      <span class="cell"><i></i></span><span id="battText">--</span>
+    </div>
+    <div id="clockPill" class="pill" title="Session length"><span id="clockText">00:00</span></div>
     <button id="settingsBtn" class="btn small ghost icon" aria-label="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span class="label">Settings</span>
@@ -125,13 +133,22 @@
     <div class="grid">
 
       <section class="card hero">
-        <h2>Heart rate <em id="wristText"></em></h2>
+        <h2>Heart rate <em id="wristText"></em>
+          <button id="focusBtn" class="focus-btn" aria-label="Full-screen the heart rate" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/>
+            </svg>
+          </button>
+        </h2>
         <div class="hero-row">
           <div class="hero-num">
-            <span class="v num" id="hr">--</span><span class="u">bpm</span>
+            <div class="reading" aria-live="polite" aria-atomic="true">
+              <span class="v num" id="hr">--</span><span class="u">bpm</span>
+            </div>
             <div><span class="zone-chip" id="zoneChip"><i></i><span>waiting for beats</span></span></div>
           </div>
-          <svg class="gauge" width="132" height="132" viewBox="0 0 132 132">
+          <svg class="gauge" viewBox="0 0 132 132" role="img" aria-labelledby="gaugeLabel">
+            <title id="gaugeLabel">Effort as a share of maximum heart rate</title>
             <defs>
               <linearGradient id="gaugeGrad" x1="0" y1="1" x2="1" y2="0">
                 <stop id="gaugeStop1" offset="0%" stop-color="#00e5b0"/>
@@ -139,22 +156,26 @@
               </linearGradient>
             </defs>
             <circle cx="66" cy="66" r="56" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="10"/>
+            <!-- Zone boundaries at 50/60/70/80/90% of maximum, so the arc is read
+                 against the same five zones the bars below the fold count. -->
+            <g id="gaugeTicks" stroke="rgba(255,255,255,.22)" stroke-width="1.5" stroke-linecap="round"></g>
+            <circle id="gaugeBeat" cx="66" cy="66" r="56" fill="none" stroke="var(--zone)" stroke-width="10" opacity="0"/>
             <circle id="gaugeArc" cx="66" cy="66" r="56" fill="none" stroke="url(#gaugeGrad)" stroke-width="10"
                     stroke-linecap="round" transform="rotate(-90 66 66)"
                     stroke-dasharray="0 352"
-                    style="transition:stroke-dasharray .45s cubic-bezier(.22,.61,.36,1);filter:drop-shadow(0 0 6px rgba(0,229,176,.45))"/>
-            <text x="66" y="62" text-anchor="middle" fill="#7b8698" font-size="10" letter-spacing="1.4">OF MAX</text>
+                    style="filter:drop-shadow(0 0 6px rgba(0,229,176,.45))"/>
+            <text x="66" y="61" text-anchor="middle" fill="#4d5768" font-size="9.5" letter-spacing="1.4">OF MAX</text>
             <text id="gaugePct" x="66" y="82" text-anchor="middle" fill="#eef2f8" font-size="21" font-weight="600">--</text>
           </svg>
         </div>
-        <canvas id="wave" height="132" style="margin-top:6px"></canvas>
+        <canvas id="wave" aria-label="Heart rate over the last three minutes" style="margin-top:6px"></canvas>
       </section>
 
       <section class="card side">
         <h2>Variability <em id="hrvWindow">last 5 min</em></h2>
         <div class="metric"><span class="v num" id="rmssd">--</span><span class="u">ms RMSSD</span></div>
         <div class="sub" id="hrvSub">needs about 30 beats</div>
-        <canvas id="poincare" height="176" style="margin-top:10px"></canvas>
+        <canvas id="poincare" aria-label="Each beat interval plotted against the one before it" style="margin-top:10px"></canvas>
       </section>
 
       <section class="card"><h2>SDNN</h2>
@@ -180,17 +201,17 @@
 
       <section class="card half">
         <h2>Load <em>Banister TRIMP</em></h2>
-        <div class="rowline" style="align-items:flex-end;gap:26px">
+        <div class="dual">
           <div>
             <div class="metric"><span class="v num" id="load">--</span><span class="u">/ 21</span></div>
             <div class="sub">display scale, not WHOOP's strain score</div>
           </div>
           <div>
-            <div class="metric"><span class="v num" id="trimp" style="font-size:22px">--</span><span class="u">TRIMP</span></div>
+            <div class="metric"><span class="v num small" id="trimp">--</span><span class="u">TRIMP</span></div>
             <div class="sub" id="loadSub">accumulating</div>
           </div>
         </div>
-        <canvas id="loadChart" height="86" style="margin-top:14px"></canvas>
+        <canvas id="loadChart" aria-label="Training load accumulating over the session" style="margin-top:14px"></canvas>
       </section>
 
       <section class="card full">
@@ -215,6 +236,7 @@
 </div>
 
 <dialog id="settings">
+  <div class="grab" aria-hidden="true"></div>
   <h3>Your numbers</h3>
   <div class="hint">Used for zones and training load. Kept on this device.</div>
   <label class="field">Age

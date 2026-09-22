@@ -1,33 +1,69 @@
-/* Dark instrument panel: WHOOP's calm hierarchy, Garmin's density.
-   Written mobile-first — the phone layout is the base, desktop is the override. */
+/* Strapline — dark instrument panel.
+ *
+ * Written mobile-first: the phone layout is the base and wider screens are the
+ * override, because the phone is where this is actually read — one-handed,
+ * mid-effort, with a wrist in front of the screen.
+ *
+ * Every value here comes from .claude/skills/ui-design/references/design-tokens.md.
+ * If a value is not in that file it does not belong in this one.
+ */
 
 :root {
+  /* ground and surfaces */
   --bg: #07090c;
   --surface: #0e1219;
   --surface-2: #131926;
+  --surface-3: #18202f;
   --line: rgba(255, 255, 255, 0.07);
   --line-strong: rgba(255, 255, 255, 0.13);
+  --sheen: rgba(255, 255, 255, 0.045);
+
+  /* ink */
   --fg: #eef2f8;
+  --fg-dim: #c3ccdb;
   --muted: #7b8698;
   --faint: #4d5768;
+  --ghost: #3b4454;
 
+  /* accent and signal */
   --accent: #00e5b0;
   --accent-2: #7ddc5b;
   --violet: #8b7cf6;
   --amber: #f5b43f;
   --red: #ff5d5d;
 
+  /* heart-rate zones */
   --z1: #55627a;
   --z2: #4da3ff;
   --z3: #00e5b0;
   --z4: #f5b43f;
   --z5: #ff5d5d;
 
-  --radius: 18px;
-  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -12px rgba(0, 0, 0, 0.8);
+  /* The colour of the effort happening right now. Set from app.js on every
+     render, so anything that should follow the wearer's zone — the hero glow,
+     the gauge halo, the live dot — reads this one variable instead of being
+     repainted individually. */
+  --zone: var(--accent);
+  --zone-rgb: 0, 229, 176;
 
-  /* Home-screen installs run under the notch and home indicator. */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+
+  --e1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -12px rgba(0, 0, 0, 0.8);
+  --e2: 0 2px 4px rgba(0, 0, 0, 0.5), 0 18px 40px -20px rgba(0, 0, 0, 0.9);
+  --e3: 0 24px 60px -20px rgba(0, 0, 0, 0.9);
+
+  --d-micro: 120ms;
+  --d-std: 180ms;
+  --d-slow: 320ms;
+  --d-value: 450ms;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.3, 0.64, 1);
+
+  /* Home-screen installs run under the notch and the home indicator. */
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px);
@@ -48,6 +84,7 @@ body {
   font-size: 15px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   /* Stop the rubber-band scroll revealing white behind a standalone app. */
   overscroll-behavior-y: none;
 }
@@ -63,8 +100,26 @@ body::before {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* The ambient wash behind the whole dashboard takes the colour of the current
+   zone. It is the one effect that makes the page feel like it is reporting a
+   body rather than displaying a file, and it costs one repaint of one fixed
+   layer per zone change. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: 46vh;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(90% 100% at 50% 0%, rgba(var(--zone-rgb), 0.11) 0%, rgba(var(--zone-rgb), 0) 70%);
+  opacity: 0;
+  transition: opacity var(--d-slow) var(--ease), background var(--d-value) var(--ease);
+}
+body.armed::after { opacity: 1; }
+
 button { font: inherit; color: inherit; cursor: pointer; }
 a { color: var(--muted); }
+button, a, input, select, summary { touch-action: manipulation; }
 
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -74,6 +129,10 @@ a { color: var(--muted); }
 
 .num { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .hidden { display: none !important; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 
 /* ── chrome ──────────────────────────────────────────────────────────── */
 
@@ -88,12 +147,19 @@ a { color: var(--muted); }
   background: rgba(7, 9, 12, 0.84);
   backdrop-filter: saturate(160%) blur(14px);
   -webkit-backdrop-filter: saturate(160%) blur(14px);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--d-std) var(--ease), box-shadow var(--d-std) var(--ease);
 }
+/* The bar only announces itself once content has gone under it. At the top of
+   the page a border and a shadow are a line drawn for no reason. */
+.topbar.scrolled { border-bottom-color: var(--line); box-shadow: var(--e2); }
 
 .brand { display: flex; align-items: baseline; gap: 7px; margin-right: auto; min-width: 0; }
 .brand b { font-size: 15px; font-weight: 650; letter-spacing: 0.01em; }
 .brand span { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.16em; }
+/* The status pill already says "live". On a narrow bar the word is the first
+   thing to go, before anything carrying a number gets truncated. */
+@media (max-width: 479px) { .brand span { display: none; } }
 
 .pill {
   display: inline-flex;
@@ -101,7 +167,7 @@ a { color: var(--muted); }
   gap: 7px;
   padding: 5px 11px 5px 9px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--surface);
   font-size: 12px;
   color: var(--muted);
@@ -109,28 +175,53 @@ a { color: var(--muted); }
   max-width: 46vw;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: none; }
-.pill.live .dot { background: var(--accent); box-shadow: 0 0 0 0 rgba(0, 229, 176, 0.5); animation: pulse 2.4s infinite; }
+.pill.live { color: var(--fg-dim); border-color: rgba(var(--zone-rgb), 0.28); }
+.pill.live .dot { background: var(--zone); box-shadow: 0 0 0 0 rgba(var(--zone-rgb), 0.5); animation: pulse 2.4s infinite; }
+.pill.stale { color: #e4d4b4; border-color: rgba(245, 180, 63, 0.3); }
 .pill.stale .dot { background: var(--amber); }
 @keyframes pulse {
-  70% { box-shadow: 0 0 0 7px rgba(0, 229, 176, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 229, 176, 0); }
+  70% { box-shadow: 0 0 0 7px rgba(var(--zone-rgb), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--zone-rgb), 0); }
 }
+
+/* Battery belongs on the phone too: the strap running flat mid-session is the
+   one piece of device state that changes what the wearer does next. */
+.pill.batt { padding-left: 8px; gap: 6px; }
+.pill.batt .cell {
+  width: 20px; height: 10px; border: 1px solid var(--faint); border-radius: 3px;
+  position: relative; flex: none; padding: 1.5px;
+}
+.pill.batt .cell::after {
+  content: ''; position: absolute; top: 2px; right: -3px; width: 2px; height: 4px;
+  background: var(--faint); border-radius: 0 1px 1px 0;
+}
+.pill.batt .cell i {
+  display: block; height: 100%; width: var(--lvl, 0%); border-radius: 1px;
+  background: var(--accent); transition: width var(--d-value) var(--ease), background var(--d-std) var(--ease);
+}
+.pill.batt.low .cell i { background: var(--amber); }
+.pill.batt.critical .cell i { background: var(--red); }
 
 .btn {
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--surface-2);
   padding: 10px 18px;
   min-height: 40px;
   font-size: 13.5px;
   font-weight: 550;
   white-space: nowrap;
-  transition: border-color 0.18s var(--ease), background 0.18s var(--ease), transform 0.12s var(--ease), opacity 0.18s var(--ease);
+  transition: border-color var(--d-std) var(--ease), background var(--d-std) var(--ease),
+    transform var(--d-micro) var(--ease), opacity var(--d-std) var(--ease);
   -webkit-tap-highlight-color: transparent;
 }
-.btn:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.28); background: #18202f; }
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.28); background: var(--surface-3); }
+  .btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+}
 .btn:active:not(:disabled) { transform: scale(0.97); }
 .btn:disabled { opacity: 0.38; cursor: not-allowed; }
 .btn.primary {
@@ -140,7 +231,6 @@ a { color: var(--muted); }
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   box-shadow: 0 6px 22px -10px rgba(0, 229, 176, 0.9);
 }
-.btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
 /* A dimmed gradient read as a broken button. Inactive should look like a
    different state, not a faulty version of the active one. */
 .btn.primary:disabled {
@@ -178,12 +268,27 @@ main {
   min-width: 0;
   background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 15px;
+  border-radius: var(--r-lg);
+  padding: 16px;
   position: relative;
   overflow: hidden;
-  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: var(--e1);
   animation: rise 0.5s var(--ease) both;
+  transition: box-shadow var(--d-std) var(--ease), border-color var(--d-std) var(--ease),
+    transform var(--d-std) var(--ease);
+}
+/* Depth from light, not from more borders: a 1px specular edge along the top
+   is what makes the border read as the lit edge of a surface. */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--sheen) 18%, var(--sheen) 82%, transparent);
+  pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .card:hover { box-shadow: var(--e2); border-color: var(--line-strong); }
 }
 .card.hero, .card.side, .card.half, .card.full { grid-column: span 12; }
 
@@ -220,27 +325,63 @@ main {
   text-transform: none;
   font-size: 11px;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .metric { display: flex; align-items: baseline; gap: 5px; }
-.metric .v { font-size: 27px; font-weight: 640; line-height: 1; }
+.metric .v { font-size: 28px; font-weight: 640; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .metric .u { font-size: 11.5px; color: var(--faint); }
-.sub { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.sub { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
 .hint { font-size: 11.5px; color: var(--faint); }
+
+/* A value still waiting for its first reading shimmers in its own footprint,
+   so the card does not jump when the number arrives. */
+.metric .v.waiting {
+  color: transparent;
+  background: linear-gradient(100deg, var(--surface-3) 20%, #222c42 40%, var(--surface-3) 60%);
+  background-size: 260% 100%;
+  border-radius: 7px;
+  animation: shimmer 1.8s linear infinite;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+}
+@keyframes shimmer {
+  from { background-position: 140% 0; }
+  to { background-position: -40% 0; }
+}
 
 /* ── hero ────────────────────────────────────────────────────────────── */
 
-.hero-row { display: flex; align-items: center; gap: 14px; }
+.card.hero { padding-bottom: 8px; display: flex; flex-direction: column; }
+/* The zone glow sits behind the number, inside the card, tied to --zone. */
+.card.hero::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  left: -10%;
+  width: 70%;
+  height: 130%;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgba(var(--zone-rgb), 0.16), rgba(var(--zone-rgb), 0) 100%);
+  transition: background var(--d-value) var(--ease);
+}
+
+.hero-row { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
 .hero-num { flex: none; min-width: 0; }
+/* Value and unit share one baseline row, or the unit wraps under a 96px figure. */
+.hero-num .reading { display: flex; align-items: baseline; }
 .hero-num .v {
-  font-size: clamp(56px, 17vw, 88px);
+  font-size: clamp(58px, 18vw, 96px);
   font-weight: 680;
-  line-height: 0.9;
+  line-height: 0.88;
   letter-spacing: -0.045em;
-  background: linear-gradient(160deg, #ffffff 10%, var(--accent) 115%);
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(160deg, #ffffff 8%, var(--zone) 118%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  transition: filter var(--d-value) var(--ease);
+  filter: drop-shadow(0 6px 26px rgba(var(--zone-rgb), 0.22));
 }
 .hero-num .u { font-size: 13px; color: var(--muted); margin-left: 3px; }
 
@@ -262,31 +403,136 @@ main {
   gap: 7px;
   margin-top: 11px;
   padding: 5px 12px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--line-strong);
   background: rgba(255, 255, 255, 0.03);
   font-size: 12px;
   font-weight: 550;
-  transition: border-color 0.4s var(--ease);
+  color: var(--fg-dim);
+  transition: border-color var(--d-value) var(--ease), background var(--d-value) var(--ease);
 }
-.zone-chip i { width: 8px; height: 8px; border-radius: 2px; flex: none; transition: background 0.4s var(--ease); }
+.zone-chip i { width: 8px; height: 8px; border-radius: 2px; flex: none; transition: background var(--d-value) var(--ease); }
 
-.gauge { flex: none; margin-left: auto; width: clamp(96px, 30vw, 132px); height: auto; }
+.gauge { flex: none; margin-left: auto; width: clamp(104px, 31vw, 142px); height: auto; }
 .gauge text { font-variant-numeric: tabular-nums; }
+#gaugeArc { transition: stroke-dasharray var(--d-value) var(--ease); }
+/* One ring expanding per measured beat: the pulse made visible at the rate the
+   strap is reporting, not at a rate chosen by a designer. */
+#gaugeBeat { transform-origin: 66px 66px; animation: none; }
+.beating-ring #gaugeBeat { animation: ring var(--beat, 1s) ease-out infinite; }
+@keyframes ring {
+  0% { opacity: 0.5; transform: scale(0.92); }
+  70% { opacity: 0; transform: scale(1.06); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
 
+/* A canvas has no intrinsic height, so it gets one here and the drawing code
+   reads it back. Chart heights are a layout decision, not a magic number in JS. */
 canvas { display: block; width: 100%; }
+#wave { flex: 1 1 auto; min-height: 128px; }
+#poincare { height: 220px; }
+#loadChart { height: 92px; }
+
+/* The one control the hero carries: full-screen the number for a set, where a
+   phone is propped on a bench two feet away. */
+.focus-btn {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--r-pill);
+  width: 30px; height: 30px;
+  display: inline-grid; place-items: center;
+  color: var(--muted);
+  flex: none;
+  margin: -6px -4px -6px 0;
+  transition: color var(--d-std) var(--ease), border-color var(--d-std) var(--ease);
+}
+.focus-btn svg { width: 14px; height: 14px; }
+@media (hover: hover) and (pointer: fine) {
+  .focus-btn:hover { color: var(--fg); border-color: var(--line-strong); }
+}
+
+/* A strap that is not on a wrist is still reporting numbers; they are just not
+   about anybody. Dimming says so without blanking the card. */
+.card.hero.off-wrist .hero-num,
+.card.hero.off-wrist .gauge { opacity: 0.45; transition: opacity var(--d-slow) var(--ease); }
+
+/* ── focus mode ──────────────────────────────────────────────────────── */
+
+body.focus .topbar,
+body.focus footer,
+body.focus .grid > *:not(.hero) { display: none; }
+body.focus main { padding: 0; max-width: none; }
+body.focus .card.hero {
+  grid-column: span 12;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  min-height: 100dvh;
+  padding: calc(18px + var(--safe-t)) calc(18px + var(--safe-r)) calc(18px + var(--safe-b)) calc(18px + var(--safe-l));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  animation: none;
+}
+body.focus .card.hero::before { display: none; }
+/* Number and gauge share the row, bottom-aligned: stacked, the gauge left a
+   half-empty screen beside it. */
+body.focus .hero-row { align-items: flex-end; justify-content: space-between; gap: 12px; }
+body.focus .hero-num .v { font-size: clamp(88px, 34vw, 220px); }
+body.focus .hero-num .u { font-size: 18px; }
+body.focus .zone-chip { font-size: 14.5px; padding: 9px 18px; margin-top: 18px; }
+body.focus .gauge { margin: 0; width: clamp(104px, 29vw, 190px); }
+body.focus #wave { min-height: 30vh; }
+body.focus .focus-btn { position: fixed; top: calc(12px + var(--safe-t)); right: calc(12px + var(--safe-r)); width: 42px; height: 42px; margin: 0; z-index: 30; }
+body.focus .card h2 { font-size: 11px; }
 
 /* ── zones ───────────────────────────────────────────────────────────── */
 
-.zones { display: flex; flex-direction: column; gap: 8px; }
-.zrow { display: grid; grid-template-columns: 24px 1fr 58px; align-items: center; gap: 9px; font-size: 12px; }
-.zrow b { font-weight: 600; color: var(--muted); }
-.ztrack { height: 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.055); overflow: hidden; }
-.zfill { height: 100%; border-radius: 999px; width: 0; transition: width 0.6s var(--ease); }
-.zrow span { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.zones { display: flex; flex-direction: column; gap: 4px; }
+/* Placement is explicit rather than left to source order, because the two
+   layouts read in different orders: on a phone the bar drops to its own line
+   under the name, on a wide screen it sits between the name and the time. */
+.zrow {
+  display: grid;
+  grid-template-columns: 1fr 64px;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 12px;
+  padding: 5px 7px;
+  margin: 0 -7px;
+  border-radius: var(--r-sm);
+  transition: background var(--d-std) var(--ease);
+}
+.zrow .zname { grid-area: 1 / 1; display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.zrow b { font-weight: 600; color: var(--fg-dim); flex: none; }
+.zrow .zrange { color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zrow .ztime { grid-area: 1 / 2; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ztrack { grid-area: 2 / 1 / 3 / -1; height: 7px; border-radius: var(--r-pill); background: rgba(255, 255, 255, 0.055); overflow: hidden; }
+.zfill { height: 100%; border-radius: var(--r-pill); width: 0; transition: width var(--d-value) var(--ease); }
 /* The zone the wearer is in right now, so the card answers "where am I?" first. */
-.zrow.now b, .zrow.now span { color: var(--fg); }
+.zrow.now { background: rgba(var(--zone-rgb), 0.07); }
+.zrow.now b, .zrow.now .ztime { color: var(--fg); }
 .zrow.now .ztrack { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.zrow.empty .zfill { opacity: 0.5; }
+
+/* Two numbers that belong to one quantity, side by side at every width. */
+.dual { display: flex; align-items: flex-end; gap: 16px 20px; flex-wrap: wrap; }
+.dual > div { min-width: 0; flex: 1 1 130px; }
+.dual .sub { font-size: 11.5px; }
+.dual .metric .v.small { font-size: 22px; }
+
+/* Offered only when the browser says the app can be installed, and on the
+   landing page only — a prompt on top of live readings is an interruption. */
+.install {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.install svg { width: 15px; height: 15px; }
 
 /* ── gate ────────────────────────────────────────────────────────────── */
 
@@ -329,7 +575,7 @@ canvas { display: block; width: 100%; }
   gap: 12px;
   border: 1px solid rgba(245, 180, 63, 0.26);
   background: rgba(245, 180, 63, 0.06);
-  border-radius: 14px;
+  border-radius: var(--r-md);
   padding: 14px 16px;
   margin: 24px auto 0;
   max-width: 560px;
@@ -356,12 +602,12 @@ canvas { display: block; width: 100%; }
   margin: 0 auto 18px;
   padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: var(--r-md);
   background: var(--surface);
   font-size: 12.5px;
   color: var(--muted);
   cursor: pointer;
-  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+  transition: border-color var(--d-std) var(--ease), background var(--d-std) var(--ease);
 }
 .ack:has(input:checked) { border-color: rgba(0, 229, 176, 0.35); background: rgba(0, 229, 176, 0.04); }
 .ack input { margin: 1px 0 0; width: 20px; height: 20px; accent-color: var(--accent); flex: none; cursor: pointer; }
@@ -371,7 +617,7 @@ canvas { display: block; width: 100%; }
   margin: 22px auto 0;
   text-align: left;
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: var(--r-md);
   background: rgba(255, 255, 255, 0.015);
 }
 .terms summary { padding: 13px 16px; cursor: pointer; font-size: 13px; color: var(--muted); list-style: none; user-select: none; }
@@ -400,6 +646,9 @@ table.sessions th {
 table.sessions td { padding: 9px 10px 9px 0; border-top: 1px solid var(--line); color: var(--muted); vertical-align: middle; }
 table.sessions td.n { font-variant-numeric: tabular-nums; color: var(--fg); }
 table.sessions td.act { white-space: nowrap; text-align: right; }
+@media (hover: hover) and (pointer: fine) {
+  table.sessions tbody tr:hover td { background: rgba(255, 255, 255, 0.015); }
+}
 
 /* Phones: the seven-column table becomes one card per session. */
 @media (max-width: 719px) {
@@ -407,7 +656,7 @@ table.sessions td.act { white-space: nowrap; text-align: right; }
   table.sessions, table.sessions tbody, table.sessions tr, table.sessions td { display: block; width: 100%; }
   table.sessions tr {
     border: 1px solid var(--line);
-    border-radius: 13px;
+    border-radius: var(--r-md);
     padding: 11px 13px;
     margin-top: 10px;
     background: rgba(255, 255, 255, 0.015);
@@ -421,21 +670,30 @@ table.sessions td.act { white-space: nowrap; text-align: right; }
     letter-spacing: 0.1em;
     align-self: center;
   }
-  table.sessions td.act { justify-content: flex-end; padding-top: 10px; text-align: right; }
+  table.sessions td.act { justify-content: flex-end; padding-top: 10px; gap: 8px; text-align: right; }
   table.sessions td.act::before { content: none; }
+  table.sessions td.act .btn { min-height: 38px; padding: 8px 14px; }
 }
+
+/* ── settings: dialog on a desktop, bottom sheet on a phone ──────────── */
 
 dialog {
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
+  border-radius: var(--r-lg);
   background: var(--surface-2);
   color: var(--fg);
   padding: 20px;
-  width: min(92vw, 360px);
-  box-shadow: var(--shadow);
+  width: min(92vw, 380px);
+  box-shadow: var(--e3);
 }
 dialog::backdrop { background: rgba(4, 6, 9, 0.72); backdrop-filter: blur(3px); }
+dialog[open] { animation: dialog-in var(--d-slow) var(--ease); }
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
 dialog h3 { margin: 0 0 4px; font-size: 17px; font-weight: 640; }
+.grab { display: none; }
 label.field { display: block; margin: 14px 0 0; font-size: 12.5px; color: var(--muted); }
 label.field input, label.field select {
   width: 100%;
@@ -444,10 +702,33 @@ label.field input, label.field select {
   background: #0a0e14;
   color: var(--fg);
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   font: inherit;
   font-size: 16px; /* 16px stops iOS zooming the page when a field focuses */
   font-variant-numeric: tabular-nums;
+}
+label.field input:focus, label.field select:focus { outline: none; border-color: rgba(0, 229, 176, 0.5); }
+
+@media (max-width: 719px) {
+  dialog {
+    width: 100%;
+    max-width: none;
+    margin: 0 0 0 0;
+    position: fixed;
+    inset: auto 0 0 0;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    border-bottom: 0;
+    padding: 10px calc(18px + var(--safe-r)) calc(20px + var(--safe-b)) calc(18px + var(--safe-l));
+  }
+  dialog[open] { animation: sheet-in var(--d-slow) var(--ease-out-back); }
+  @keyframes sheet-in {
+    from { transform: translateY(100%); }
+    to { transform: none; }
+  }
+  /* The grab handle is the whole affordance: a sheet without one reads as a
+     dialog that landed in the wrong place. */
+  .grab { display: block; width: 38px; height: 4px; border-radius: 2px; background: var(--line-strong); margin: 4px auto 14px; }
+  dialog .btn.small { min-height: 44px; padding: 10px 20px; }
 }
 
 footer {
@@ -465,7 +746,7 @@ footer {
 @media (min-width: 720px) {
   main { padding: 20px calc(20px + var(--safe-r)) 20px calc(20px + var(--safe-l)); }
   .grid { gap: 14px; }
-  .card { padding: 17px; }
+  .card { padding: 18px; }
   .card.half { grid-column: span 6; }
   .btn .label { display: inline; }
   .btn.icon { width: auto; padding: 7px 13px; }
@@ -475,6 +756,12 @@ footer {
   .pill { font-size: 12.5px; max-width: none; }
   .metric .v { font-size: 30px; }
   .hero-row { gap: 22px; }
+  #wave { min-height: 150px; }
+  #poincare { height: 250px; }
+  #loadChart { height: 104px; }
+  .zrow { grid-template-columns: 1fr 1.6fr 68px; gap: 10px; }
+  .zrow .ztrack { grid-area: 1 / 2; }
+  .zrow .ztime { grid-area: 1 / 3; }
 }
 
 @media (min-width: 1000px) {
@@ -485,6 +772,8 @@ footer {
   .card.full { grid-column: span 12; }
   main { padding: 24px; }
   .brand b { font-size: 16px; }
+  #wave { min-height: 168px; }
+  #poincare { height: 300px; }
 }
 
 /* ── landscape phones ────────────────────────────────────────────────── */
@@ -493,6 +782,10 @@ footer {
   .gate { padding-top: 3vh; }
   .gate h1 { font-size: 28px; }
   .hero-num .v { font-size: 52px; }
+  #wave { min-height: 96px; }
+  #poincare { height: 150px; }
+  body.focus .hero-num .v { font-size: clamp(80px, 22vh, 150px); }
+  body.focus #wave { min-height: 24vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {

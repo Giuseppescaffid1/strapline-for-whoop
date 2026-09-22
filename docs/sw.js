@@ -7,7 +7,7 @@
 // Strategy is stale-while-revalidate: serve the cached shell immediately, then
 // refresh it in the background. Bump CACHE to force a clean re-fetch.
 
-const CACHE = 'strapline-v1';
+const CACHE = 'strapline-v2';
 
 const SHELL = [
   './',

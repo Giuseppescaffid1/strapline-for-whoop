@@ -173,37 +173,92 @@ DASHBOARD_HTML = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
 <title>WHOOP live</title>
 <style>
-  :root { --bg:#0e1116; --card:#171c24; --fg:#e8edf3; --muted:#8a94a3; --accent:#19d3b5; --warn:#f5a524; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid #222a35; }
-  header h1 { margin:0; font-size:18px; font-weight:600; letter-spacing:.02em; }
-  .status { display:flex; gap:14px; color:var(--muted); font-size:13px; align-items:center; }
-  .dot { width:10px; height:10px; border-radius:50%; background:#555; display:inline-block; margin-right:6px; }
+  /* Same tokens as the browser app (docs/style.css), so the two dashboards do
+     not read as two different products. Kept inline: this page is served by a
+     single-file localhost server with nothing to link to. */
+  :root {
+    --bg:#07090c; --surface:#0e1219; --surface-2:#131926;
+    --line:rgba(255,255,255,.07); --sheen:rgba(255,255,255,.045);
+    --fg:#eef2f8; --muted:#7b8698; --faint:#4d5768;
+    --accent:#00e5b0; --accent-2:#7ddc5b; --amber:#f5b43f;
+    --r-lg:18px; --r-pill:999px;
+    --e1:0 1px 2px rgba(0,0,0,.5), 0 8px 24px -12px rgba(0,0,0,.8);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+    --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px);
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg);
+    background-image:radial-gradient(1200px 700px at 50% -20%, #121924 0%, var(--bg) 62%);
+    background-attachment:fixed; color:var(--fg);
+    font:15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header {
+    position:sticky; top:0; z-index:10;
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:calc(12px + var(--safe-t)) calc(16px + var(--safe-r)) 12px calc(16px + var(--safe-l));
+    background:rgba(7,9,12,.84); backdrop-filter:saturate(160%) blur(14px);
+    -webkit-backdrop-filter:saturate(160%) blur(14px); border-bottom:1px solid var(--line);
+  }
+  header h1 { margin:0 auto 0 0; font-size:15px; font-weight:650; letter-spacing:.01em; }
+  .status { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .status span.pill {
+    display:inline-flex; align-items:center; gap:7px; padding:5px 11px;
+    border:1px solid var(--line); border-radius:var(--r-pill); background:var(--surface);
+    font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap;
+  }
+  .status span.pill:empty { display:none; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--faint); flex:none; }
   .dot.on { background:var(--accent); box-shadow:0 0 8px var(--accent); }
-  main { padding:20px; max-width:1100px; margin:0 auto; display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); }
-  .card { background:var(--card); border:1px solid #222a35; border-radius:14px; padding:16px 18px; }
-  .card.wide { grid-column:1 / -1; }
-  .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
-  .value { font-size:34px; font-weight:600; margin-top:4px; font-variant-numeric:tabular-nums; }
-  .value small { font-size:14px; color:var(--muted); font-weight:400; margin-left:4px; }
-  .hero .value { font-size:72px; line-height:1; color:var(--accent); }
-  .sub { color:var(--muted); font-size:13px; margin-top:6px; }
-  canvas { width:100%; height:220px; display:block; }
-  .stale .hero .value { color:var(--warn); }
+  main {
+    padding:16px calc(16px + var(--safe-r)) calc(24px + var(--safe-b)) calc(16px + var(--safe-l));
+    max-width:1100px; margin:0 auto;
+    display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+  }
+  .card {
+    background:linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
+    border:1px solid var(--line); border-radius:var(--r-lg); padding:16px;
+    box-shadow:var(--e1); position:relative; overflow:hidden; min-width:0;
+  }
+  .card::before {
+    content:''; position:absolute; inset:0 0 auto; height:1px; pointer-events:none;
+    background:linear-gradient(90deg, transparent, var(--sheen) 18%, var(--sheen) 82%, transparent);
+  }
+  .card.hero, .card.wide { grid-column:1 / -1; }
+  .label { color:var(--faint); font-size:10px; text-transform:uppercase; letter-spacing:.15em; font-weight:600; }
+  .value { font-size:28px; font-weight:640; margin-top:8px; font-variant-numeric:tabular-nums; letter-spacing:-.02em; line-height:1; }
+  .value small { font-size:11.5px; color:var(--faint); font-weight:400; margin-left:4px; letter-spacing:0; }
+  .hero .value {
+    font-size:clamp(58px,18vw,92px); line-height:.9; letter-spacing:-.045em;
+    background:linear-gradient(160deg,#fff 8%,var(--accent) 118%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    transition:filter .32s var(--ease);
+  }
+  .hero .value small { -webkit-text-fill-color:var(--muted); color:var(--muted); font-size:13px; }
+  .sub { color:var(--muted); font-size:12.5px; margin-top:8px; }
+  canvas { width:100%; height:180px; display:block; margin-top:10px; }
+  /* Stale data is stated, not implied: the figure goes amber and the age pill
+     says how long it has been since the last sample. */
+  .stale .hero .value { background:none; -webkit-text-fill-color:var(--amber); color:var(--amber); }
+  @media (min-width:720px) { main { padding:20px; gap:14px; } canvas { height:230px; } .card { padding:18px; } }
+  @media (min-width:1000px) { .card.hero { grid-column:span 2; } }
+  @media (prefers-reduced-motion:reduce) { * { transition-duration:.001ms !important; } }
 </style>
 </head>
 <body>
 <header>
   <h1>WHOOP live</h1>
   <div class="status">
-    <span><span class="dot" id="dot"></span><span id="conn">connecting…</span></span>
-    <span id="device"></span>
-    <span id="battery"></span>
-    <span id="age"></span>
+    <span class="pill"><span class="dot" id="dot"></span><span id="conn">connecting…</span></span>
+    <span class="pill" id="device"></span>
+    <span class="pill" id="battery"></span>
+    <span class="pill" id="age"></span>
   </div>
 </header>
 <main>
@@ -229,34 +284,90 @@ DASHBOARD_HTML = """<!doctype html>
   </div>
   <div class="card wide">
     <div class="label">Heart rate · last 5 minutes</div>
-    <canvas id="chart" width="1000" height="220"></canvas>
+    <canvas id="chart"></canvas>
   </div>
 </main>
 <script>
 const $ = id => document.getElementById(id);
 const canvas = $('chart'), ctx = canvas.getContext('2d');
-let lastAt = 0;
+let lastAt = 0, lastSeries = null;
 
 function fmt(v, d = 0) { return (v === null || v === undefined) ? '—' : Number(v).toFixed(d); }
 
-function draw(series) {
-  const w = canvas.width, h = canvas.height;
+// The canvas had a fixed 1000x220 backing store stretched to whatever width the
+// window happened to be, which is a blurred chart on every screen and a badly
+// squashed one on a phone. Size it to the element, at device resolution.
+function sized() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const w = canvas.clientWidth || 600, h = canvas.clientHeight || 180;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  if (!series || series.length < 2) return;
-  const t0 = series[series.length - 1][0] - 300, t1 = series[series.length - 1][0];
-  const vals = series.map(p => p[1]);
+  return [w, h];
+}
+
+function draw(series) {
+  lastSeries = series || lastSeries;
+  const [w, h] = sized();
+  const s = lastSeries;
+  if (!s || s.length < 2) return;
+  const t1 = s[s.length - 1][0], t0 = Math.max(s[0][0], t1 - 300);
+  const pts = s.filter(p => p[0] >= t0);
+  if (pts.length < 2) return;
+  const vals = pts.map(p => p[1]);
   const lo = Math.max(30, Math.min(...vals) - 5), hi = Math.max(...vals) + 5;
-  ctx.strokeStyle = '#2a3340'; ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) { const y = 10 + (h - 20) * i / 4; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-    ctx.fillStyle = '#8a94a3'; ctx.font = '12px sans-serif'; ctx.fillText(Math.round(hi - (hi - lo) * i / 4), 4, y - 3); }
-  ctx.strokeStyle = '#19d3b5'; ctx.lineWidth = 2; ctx.beginPath();
-  let started = false, prevT = null;
-  for (const [t, v] of series) {
-    const x = (t - t0) / (t1 - t0) * w, y = 10 + (h - 20) * (1 - (v - lo) / (hi - lo));
-    if (!started || (prevT !== null && t - prevT > 5)) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
-    prevT = t;
+  const x = t => 2 + (t - t0) / Math.max(1, t1 - t0) * (w - 14);
+  const y = v => 12 + (h - 28) * (1 - (v - lo) / Math.max(1, hi - lo));
+
+  ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1;
+  ctx.fillStyle = '#3b4454'; ctx.font = '10.5px -apple-system, system-ui, sans-serif';
+  ctx.beginPath();
+  for (let i = 0; i <= 4; i++) {
+    const gy = Math.round(12 + (h - 28) * i / 4) + 0.5;
+    ctx.moveTo(0, gy); ctx.lineTo(w, gy);
   }
   ctx.stroke();
+  for (let i = 0; i <= 4; i++) {
+    const gy = Math.round(12 + (h - 28) * i / 4) + 0.5;
+    ctx.fillText(Math.round(hi - (hi - lo) * i / 4), 2, gy - 3);
+  }
+
+  // A pause of more than five seconds breaks the line: joining across it would
+  // draw a heart rate nobody measured.
+  const runs = []; let run = [], prevT = null;
+  for (const [t, v] of pts) {
+    if (prevT !== null && t - prevT > 5) { runs.push(run); run = []; }
+    run.push([x(t), y(v)]); prevT = t;
+  }
+  if (run.length) runs.push(run);
+
+  const fill = ctx.createLinearGradient(0, 0, 0, h);
+  fill.addColorStop(0, 'rgba(0,229,176,.28)');
+  fill.addColorStop(1, 'rgba(0,229,176,0)');
+  for (const r of runs) {
+    if (r.length < 2) continue;
+    ctx.beginPath(); ctx.moveTo(r[0][0], r[0][1]);
+    for (const [px, py] of r.slice(1)) ctx.lineTo(px, py);
+    ctx.lineTo(r[r.length - 1][0], h); ctx.lineTo(r[0][0], h); ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill();
+
+    ctx.beginPath(); ctx.moveTo(r[0][0], r[0][1]);
+    for (const [px, py] of r.slice(1)) ctx.lineTo(px, py);
+    ctx.strokeStyle = '#00e5b0'; ctx.lineWidth = 2.2;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(0,229,176,.45)'; ctx.shadowBlur = 10;
+    ctx.stroke(); ctx.shadowBlur = 0;
+  }
+  const last = runs[runs.length - 1], p = last && last[last.length - 1];
+  if (p) {
+    ctx.beginPath(); ctx.arc(p[0], p[1], 3.4, 0, Math.PI * 2);
+    ctx.fillStyle = '#eef2f8';
+    ctx.shadowColor = 'rgba(0,229,176,.9)'; ctx.shadowBlur = 9;
+    ctx.fill(); ctx.shadowBlur = 0;
+  }
 }
 
 function render(s) {
@@ -287,6 +398,10 @@ function tickAge() {
   document.body.classList.toggle('stale', age > 5);
 }
 setInterval(tickAge, 1000);
+
+// Redraw when the element resizes — rotating a phone changes the chart\'s width
+// without changing anything the server sends.
+if (window.ResizeObserver) new ResizeObserver(() => draw(null)).observe(canvas);
 
 function connect() {
   const es = new EventSource('/events');

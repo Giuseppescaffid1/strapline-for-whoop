@@ -37,6 +37,12 @@ plot · respiratory rate derived from beat rhythm (RSA) · time in five heart-ra
 zones · Banister TRIMP training load · sessions saved locally with CSV and JSON
 export.
 
+On a phone it is built to be used mid-effort: add it to the home screen and it
+runs without browser chrome, the screen is held awake while readings are
+arriving, and the expand control above the heart rate gives a full-screen
+reading legible from across a room. The page takes the colour of the zone you
+are in, so effort is readable before the number is.
+
 ## Where your data goes
 
 Into your own browser, and nowhere else. Readings are written to IndexedDB on the
