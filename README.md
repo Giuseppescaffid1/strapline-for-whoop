@@ -22,13 +22,31 @@ published so other owners of the same hardware can read their own measurements.
 — no strap needed.
 
 Works in **Chrome, Edge, Opera and Brave** on macOS, Windows, Linux and Android.
-It cannot work in Safari or Firefox, or anywhere on iPhone and iPad, because
-[Web Bluetooth](https://caniuse.com/web-bluetooth) isn't implemented there —
-on iOS, [Bluefy](https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055) is the
-only browser that can.
+Safari and Firefox can't, because [Web Bluetooth](https://caniuse.com/web-bluetooth)
+isn't implemented in either.
 
 Bluetooth lets a strap talk to one device at a time, so free it up first — close the
 WHOOP app on your phone, or turn that phone's Bluetooth off.
+
+### On an iPhone or iPad
+
+Apple ships no Web Bluetooth, and every iOS browser is Safari underneath — so
+Safari, Chrome for iOS and any in-app browser all stop at the Connect button.
+**[Bluefy](https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055)**
+brings its own Bluetooth stack and is the one exception. It is free.
+
+1. Install **Bluefy** from the App Store.
+2. Open Bluefy and type `giuseppescaffid1.github.io/strapline-for-whoop/` into its
+   address bar. (Opening the page in Safari first gives you a **Copy this page's
+   link** button to paste in.)
+3. Free the strap up — close the WHOOP app, or turn Bluetooth off on the phone
+   that is paired to it.
+4. Tick the terms box, press **Connect a strap**, and pick your WHOOP in the
+   chooser Bluefy shows.
+
+Everything that is not Bluetooth — the dashboard, the sample-data run, saved
+sessions and the exports — works in Safari as it is. Add it to your home screen
+there and it runs full-screen, without browser chrome.
 
 ## What you get
 

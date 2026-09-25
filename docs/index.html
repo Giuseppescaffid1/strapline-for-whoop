@@ -87,6 +87,25 @@
     </div>
   </div>
 
+  <!-- Shown instead of the notice above when the device is an iPhone or iPad,
+       where the list of desktop browsers is not an option the reader has. One
+       app can do this on iOS, so that app is the whole message. -->
+  <div id="iosRoute" class="notice ios hidden">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="10"/></svg>
+    <div>
+      <b>On iPhone, use Bluefy.</b>
+      Apple ships no Bluetooth support in the browser, and every iOS browser is Safari
+      underneath — so Safari, Chrome and any in-app browser all stop here. Bluefy brings its
+      own, and it is free.
+      <div class="ios-actions">
+        <a class="btn small primary" href="https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055">Get Bluefy</a>
+        <button id="copyLink" class="btn small" type="button">Copy this page's link</button>
+      </div>
+      <span class="hint">Then paste the link into Bluefy's address bar. Everything else on this
+        page — including the sample-data run below — works here as it is.</span>
+    </div>
+  </div>
+
   <div class="notice">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17v.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
     <div>

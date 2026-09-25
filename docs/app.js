@@ -1056,7 +1056,29 @@ try {
 }
 ackBox.addEventListener('change', syncAck);
 
-if (!supported) $('unsupported').classList.remove('hidden');
+// iOS is not "an unsupported browser"; it is a device with exactly one browser
+// that can do this. Telling an iPhone owner to use Chrome on Windows wastes the
+// only moment they are paying attention.
+const IOS =
+  /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+if (!supported) $(IOS ? 'iosRoute' : 'unsupported').classList.remove('hidden');
+
+$('copyLink').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  try {
+    await navigator.clipboard.writeText(location.href);
+    btn.textContent = 'Link copied';
+  } catch {
+    // Clipboard access can be refused; show the link so it can be copied by hand.
+    btn.textContent = location.host + location.pathname;
+  }
+  setTimeout(() => {
+    btn.textContent = "Copy this page's link";
+  }, 2500);
+});
+
 syncAck();
 
 // A canvas has no intrinsic size, so a redraw has to follow the element rather
